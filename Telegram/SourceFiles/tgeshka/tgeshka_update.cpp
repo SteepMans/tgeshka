@@ -59,7 +59,7 @@ struct Offer {
 	QByteArray signature;
 };
 
-struct State {
+struct Runtime {
 	bool loaded = false;
 	bool started = false;
 	bool prepared = false;
@@ -85,8 +85,8 @@ struct State {
 	rpl::lifetime lifetime;
 };
 
-[[nodiscard]] State &Data() {
-	static auto result = State();
+[[nodiscard]] Runtime &Data() {
+	static auto result = Runtime();
 	return result;
 }
 
