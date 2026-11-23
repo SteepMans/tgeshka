@@ -1,0 +1,49 @@
+name: Promote beta
+
+# The owner's confirmation step: the tested beta goes to stable. Tags
+# the commit of the beta as vX.Y.Z (the next stable version), the tag
+# push starts the release build (windows.yml). See docs/updates.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      beta:
+        description: Beta tag, e.g. v0.1.3-beta.2 (empty for the latest)
+        required: false
+        type: string
+
+concurrency:
+  group: promote-beta
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    name: Tag stable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          ssh-key: ${{ secrets.UPSTREAM_SYNC_KEY }}
+
+      - name: Tag
+        env:
+          BETA: ${{ github.event.inputs.beta }}
+        run: |
+          next=$(sh tools/tgeshka/next_version.sh stable)
+          beta="$BETA"
+          if [ -z "$beta" ]; then
+            beta=$(git tag -l "v$next-beta*" | sort -V | tail -n 1)
+          fi
+          case "$beta" in
+            "v$next-beta"|"v$next-beta."*) ;;
+            *) echo "No beta of $next to promote (got '$beta')"; exit 1 ;;
+          esac
+          git rev-parse -q --verify "refs/tags/$beta" > /dev/null
+          git tag "v$next" "$beta^{commit}"
+          git push origin "v$next"
+          echo "Promoted $beta to v$next"
