@@ -233,6 +233,10 @@ void GatewaySocket::sendUpgradeRequest() {
 	request.append("Sec-WebSocket-Key: ").append(_key).append("\r\n");
 	request.append("Authorization: Bearer ");
 	request.append(_gateway.password.toUtf8()).append("\r\n");
+	if (const auto client = GatewayClientId(); !client.isEmpty()) {
+		request.append("X-TGeshka-Client: ");
+		request.append(client.toUtf8()).append("\r\n");
+	}
 	request.append("\r\n");
 	_socket.write(request);
 }
@@ -284,7 +288,9 @@ void GatewaySocket::socketReadyRead() {
 		_socket.readAll();
 		return;
 	}
-	_raw.append(_socket.readAll());
+	const auto received = _socket.readAll();
+	CountGatewayTraffic(0, received.size());
+	_raw.append(received);
 
 	const auto guard = QPointer<QObject>(static_cast<QObject*>(this));
 	if (_state == State::Upgrading) {
@@ -446,6 +452,7 @@ void GatewaySocket::sendFrame(
 	for (auto i = int64(0); i != length; ++i) {
 		body[i] ^= mask[i & 3];
 	}
+	CountGatewayTraffic(frame.size(), 0);
 	_socket.write(frame);
 }
 
