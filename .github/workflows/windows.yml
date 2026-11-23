@@ -81,6 +81,19 @@ jobs:
           key: win64-libs-${{ env.DEPS_KEY }}
           restore-keys: win64-libs-${{ env.DEPS_CACHE_VERSION }}-
 
+      - name: Repair pruned Rust sources
+        run: |
+          # The prune below used to delete the generated wallet_engine.cpp the application
+          # build compiles, while the stage keys stayed valid. Such a cache rebuilds the Rust
+          # stages (and the checkouts they compile) instead of failing at configure.
+          $libs = "$env:TBUILD\Libraries\win64"
+          if ((Test-Path "$libs\cache_keys\tdesktop_rust") -and -not (Test-Path "$libs\tdesktop_rust\out\src\wallet_engine\wallet_engine.cpp")) {
+            foreach ($name in 'tlottie', 'wallet-engine', 'tdesktop_rust') {
+              Remove-Item -Force -ErrorAction SilentlyContinue "$libs\cache_keys\$name"
+            }
+            Write-Host 'Pruned Rust stages will be rebuilt'
+          }
+
       - name: Dependencies state before
         run: |
           # prepare.py writes a cache key file per finished stage: the cache is saved again
@@ -111,10 +124,11 @@ jobs:
         if: always() && steps.deps_state.outputs.changed == 'True'
         shell: bash
         run: |
-          # Same rule as upstream win.yml: keep only what the application build uses.
+          # Upstream win.yml rule plus tdesktop_rust/out: its src holds the generated
+          # wallet_engine.cpp the application build compiles.
           LIBS="$(cygpath -u "$TBUILD")/Libraries/win64"
           [ -d "$LIBS" ] || exit 0
-          find "$LIBS" '(' '(' ! '(' -name '*.lib' -o -name '*.a' -o -name '*.exe' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -name '*.pc' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' -o -path '*/nv-codec-headers/*' ')' -type f ')' -o -empty ')' -delete
+          find "$LIBS" '(' '(' ! '(' -name '*.lib' -o -name '*.a' -o -name '*.exe' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -name '*.pc' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' -o -path '*/nv-codec-headers/*' -o -path '*/tdesktop_rust/out/*' ')' -type f ')' -o -empty ')' -delete
           du -sh "$LIBS" "$(cygpath -u "$TBUILD")/ThirdParty" || true
 
       - name: Save ThirdParty
