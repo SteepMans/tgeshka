@@ -23,6 +23,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/launcher.h"
 #include "core/local_url_handlers.h"
 #include "core/update_checker.h"
+#include "tgeshka/tgeshka_update.h"
 #include "core/deadlock_detector.h"
 #include "base/timer.h"
 #include "base/concurrent_timer.h"
@@ -467,9 +468,10 @@ void Sandbox::socketError(QLocalSocket::LocalSocketError e) {
 	}
 #endif // !Q_OS_WINRT
 
-	if (!Core::UpdaterDisabled()
-		&& !cNoStartUpdate()
-		&& Core::checkReadyUpdate()) {
+	if (Tgeshka::Update::PrepareReadyAtStartup()
+		|| (!Core::UpdaterDisabled()
+			&& !cNoStartUpdate()
+			&& Core::checkReadyUpdate())) {
 		cSetRestartingUpdate(true);
 		DEBUG_LOG(("Sandbox Info: installing update instead of starting app..."));
 		return Quit();
