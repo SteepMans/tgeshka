@@ -19,6 +19,10 @@
   (one line, wss://...) and goes to CMake as TGESHKA_GATEWAY_URL. Without it the application
   asks for the gateway address or a tgeshka://gateway link on the first launch.
 
+  -Version (or the -Release tag without "v") is the TGeshka version, 1.2.3 or 1.2.3-beta.1: it goes
+  to CMake as TGESHKA_VERSION, into the zip as tgeshka-version.txt and into the zip name, the zip
+  is then the update package (docs/updates.md). Without it the version is 0.0.0-dev.
+
   Autoupdate and crash reports are always disabled (DESKTOP_APP_DISABLE_AUTOUPDATE / _CRASH_REPORTS):
   the fork must not talk to Telegram Desktop update/crash servers directly.
 
@@ -30,6 +34,7 @@
   .\build.ps1 -Prepare        # (re)build dependencies first (first run, or after an upstream update)
   .\build.ps1 -Ref origin/main                    # checkout a ref (clean tree required) and build
   .\build.ps1 -Release v0.1.1                     # build, then publish zip as a GitHub Release with this tag
+  .\build.ps1 -Version 0.1.2-beta                 # build with this TGeshka version
 #>
 [CmdletBinding()]
 param(
@@ -40,6 +45,7 @@ param(
     [switch]$NoZip,
     [string]$Ref,
     [string]$Release,
+    [string]$Version,
     [int]$Jobs = [Environment]::ProcessorCount,
     [string]$ApiFile = (Join-Path $env:USERPROFILE '.config\tg-fork\api.txt'),
     [string]$GatewayUrl = $env:TGESHKA_GATEWAY_URL,
@@ -196,6 +202,11 @@ try {
     if ($GatewayUrl -and $GatewayUrl -notmatch '^wss://[^"\\\s]+$') { Fail 'gateway address must be wss://...' }
     Write-Host ('Default gateway address: ' + $(if ($GatewayUrl) { 'set' } else { 'none, asked on the first launch' }))
     $apiContent += "set(TGESHKA_GATEWAY_URL `"$GatewayUrl`" CACHE STRING `"`" FORCE)`n"
+    if (-not $Version -and $Release -match '^v(.+)$') { $Version = $Matches[1] }
+    if (-not $Version) { $Version = '0.0.0-dev' }
+    if ($Version -notmatch '^\d{1,6}(\.\d{1,6}){1,3}(-[0-9A-Za-z.]{1,16})?$') { Fail "bad -Version $Version" }
+    Write-Host "TGeshka version: $Version"
+    $apiContent += "set(TGESHKA_VERSION `"$Version`" CACHE STRING `"`" FORCE)`n"
     # The fork must not reach Telegram Desktop update and crash-report servers directly.
     $apiContent += "set(DESKTOP_APP_DISABLE_AUTOUPDATE ON CACHE BOOL `"`" FORCE)`n" +
         "set(DESKTOP_APP_DISABLE_CRASH_REPORTS ON CACHE BOOL `"`" FORCE)`n"
@@ -270,7 +281,7 @@ try {
     if (-not $NoZip) {
         $version = (Select-String -Path (Join-Path $Repo 'Telegram\build\version') -Pattern '^AppVersionStr\s+(\S+)').Matches[0].Groups[1].Value
         $sha = (git -C $Repo rev-parse --short HEAD).Trim()
-        $name = "$appName-$version-$sha-win64-portable"
+        $name = if ($Version -ne '0.0.0-dev') { "$appName-$Version-win64" } else { "$appName-$version-$sha-win64-portable" }
         $stage = Join-Path $Out "package\$name"
         $appDir = Join-Path $stage $appName
         if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
@@ -280,6 +291,8 @@ try {
         if (Test-Path $updater) { Copy-Item $updater $appDir }
         $modules = Join-Path $Out 'Release\modules'
         if (Test-Path $modules) { Copy-Item -Recurse $modules $appDir }
+        # The update module checks it against the manifest version.
+        [IO.File]::WriteAllText((Join-Path $appDir 'tgeshka-version.txt'), $Version)
         $zip = Join-Path $Out "$name.zip"
         if (Test-Path $zip) { Remove-Item -Force $zip }
         Compress-Archive -Path $appDir -DestinationPath $zip -CompressionLevel Optimal

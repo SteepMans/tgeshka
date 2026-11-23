@@ -8,9 +8,16 @@ on:
       - 'v*'
   pull_request:
   workflow_dispatch:
+  # Upstream sync (upstream-sync.yml) builds its merge commit with this.
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to build
+        required: true
+        type: string
 
 concurrency:
-  group: windows-${{ github.ref }}
+  group: windows-${{ inputs.ref || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -43,6 +50,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.ref || '' }}
           submodules: recursive
           path: src
 
@@ -151,6 +159,8 @@ jobs:
         run: |
           $options = @{ Jobs = [Environment]::ProcessorCount; MinFreeGB = 10; GatewayFile = $env:GATEWAY_FILE }
           if ($env:OFFICIAL -eq '1') { $options.ApiFile = $env:API_FILE } else { $options.TestApi = $true }
+          # A release tag v1.2.3 / v1.2.3-beta.1 is the TGeshka version (docs/updates.md).
+          if ($env:GITHUB_REF -like 'refs/tags/v*' -and -not '${{ inputs.ref }}') { $options.Version = $env:GITHUB_REF_NAME.Substring(1) }
           & "$env:TBUILD\tdesktop\build.ps1" @options
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $zip = Get-ChildItem "$env:TBUILD\tdesktop\out\*.zip" | Select-Object -First 1
@@ -168,12 +178,28 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') && env.OFFICIAL == '1'
         env:
           GH_TOKEN: ${{ github.token }}
+          TGESHKA_UPDATE_KEY: ${{ secrets.TGESHKA_UPDATE_KEY }}
         run: |
-          # A release may already exist (created by hand with notes): add the zip to it.
-          gh release view $env:GITHUB_REF_NAME --repo $env:GITHUB_REPOSITORY *> $null
+          # The zip is also the update package: update-manifest.json with the Ed25519
+          # signature of its sha256 goes next to it (docs/updates.md).
+          $tag = $env:GITHUB_REF_NAME
+          $version = $tag.Substring(1)
+          $minFile = "$env:TBUILD\tdesktop\Telegram\build\tgeshka_min_version"
+          $sign = @("$env:TBUILD\tdesktop\tools\tgeshka\sign_update.js", $env:ZIP, $version)
+          if (Test-Path $minFile) { $sign += (Get-Content $minFile -TotalCount 1).Trim() }
+          node @sign
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $manifest = Join-Path (Split-Path $env:ZIP) 'update-manifest.json'
+          $repo = $env:GITHUB_REPOSITORY
+          # Beta tags are pre-releases: the gateway gives them to the beta channel only.
+          $pre = if ($version.Contains('-')) { @('--prerelease') } else { @() }
+          # A release may already exist (created by hand with notes): add the files to it.
+          gh release view $tag --repo $repo *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $env:GITHUB_REF_NAME $env:ZIP --repo $env:GITHUB_REPOSITORY --clobber
+            gh release upload $tag $env:ZIP $manifest --repo $repo --clobber
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            if ($pre) { gh release edit $tag --repo $repo --prerelease }
           } else {
-            gh release create $env:GITHUB_REF_NAME $env:ZIP --repo $env:GITHUB_REPOSITORY --title $env:GITHUB_REF_NAME --notes "Windows x64 portable build of $env:GITHUB_SHA"
+            gh release create $tag $env:ZIP $manifest --repo $repo --title $tag --notes "Windows x64 portable build of $env:GITHUB_SHA" @pre
           }
           exit $LASTEXITCODE
