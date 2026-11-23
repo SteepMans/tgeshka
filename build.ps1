@@ -255,12 +255,13 @@ try {
     Step ("Build done in {0:hh\:mm\:ss}" -f ((Get-Date) - $t))
 
     # Executable / package names come from the brand header when the branch has one.
-    $appFile = 'Telegram'; $appName = 'Telegram'
+    $appFile = 'Telegram'; $appName = 'Telegram'; $appVersion = $null
     $brand = Join-Path $Repo 'Telegram\SourceFiles\tgeshka\tgeshka_brand.h'
     if (Test-Path $brand) {
         $text = [IO.File]::ReadAllText($brand)
         if ($text -match '#define\s+TGESHKA_APP_FILE\s+"([^"]+)"') { $appFile = $Matches[1] }
         if ($text -match '#define\s+TGESHKA_APP_NAME\s+"([^"]+)"') { $appName = $Matches[1] }
+        if ($text -match '#define\s+TGESHKA_VERSION\s+"([^"]+)"') { $appVersion = $Matches[1] }
     }
     $exe = Join-Path $Out "Release\$appFile.exe"
     if (-not (Test-Path $exe)) { Fail "$exe not found after build" }
@@ -268,7 +269,7 @@ try {
     # --- package ----------------------------------------------------------------
     $zip = $null
     if (-not $NoZip) {
-        $version = (Select-String -Path (Join-Path $Repo 'Telegram\build\version') -Pattern '^AppVersionStr\s+(\S+)').Matches[0].Groups[1].Value
+        $version = if ($appVersion) { $appVersion } else { (Select-String -Path (Join-Path $Repo 'Telegram\build\version') -Pattern '^AppVersionStr\s+(\S+)').Matches[0].Groups[1].Value }
         $sha = (git -C $Repo rev-parse --short HEAD).Trim()
         $name = "$appName-$version-$sha-win64-portable"
         $stage = Join-Path $Out "package\$name"
