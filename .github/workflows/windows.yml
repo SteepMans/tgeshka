@@ -42,10 +42,12 @@ jobs:
     steps:
       - name: Prepare directories
         run: |
-          # Build tree on C: (more free space than D:).
-          New-Item -ItemType Directory -Force "$env:USERPROFILE\TBuild\Libraries", "$env:USERPROFILE\TBuild\ThirdParty" | Out-Null
-          "TBUILD=$env:USERPROFILE\TBuild" >> $env:GITHUB_ENV
+          # C: has about 30 GB free, not enough for Qt; D: has about 150 GB. A real directory,
+          # not a junction: prepare.py resolves links and keys its stages by the resolved path.
           Get-PSDrive C, D -ErrorAction SilentlyContinue | Format-Table Name, @{n='FreeGB';e={[int]($_.Free/1GB)}}
+          $tbuild = if (Test-Path 'D:\') { 'D:\TBuild' } else { "$env:USERPROFILE\TBuild" }
+          New-Item -ItemType Directory -Force "$tbuild\Libraries", "$tbuild\ThirdParty" | Out-Null
+          "TBUILD=$tbuild" >> $env:GITHUB_ENV
 
       - name: Checkout sources
         uses: actions/checkout@v7
