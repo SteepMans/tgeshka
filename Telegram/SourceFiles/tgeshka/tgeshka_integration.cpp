@@ -9,6 +9,7 @@ based on Telegram Desktop (GPLv3).
 #include "tgeshka/tgeshka_gateway.h"
 #include "tgeshka/tgeshka_lang.h"
 #include "tgeshka/tgeshka_transport_bridge.h"
+#include "tgeshka/tgeshka_update_ui.h"
 #include "base/platform/base_platform_url_scheme.h"
 #include "core/application.h"
 #include "core/version.h"
@@ -92,6 +93,11 @@ void OnLocalStorageReady() {
 	// A tgeshka:// link that launched the app goes in before connecting.
 	ConsumeStartUrls(cRefStartUrls());
 	StartTransport();
+
+	// After Application::run(): windows exist for the update screens.
+	crl::on_main([] {
+		Update::StartUi();
+	});
 }
 
 rpl::producer<bool> ProxySettingsShown() {

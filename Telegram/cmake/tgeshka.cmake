@@ -19,6 +19,12 @@ PRIVATE
     ${src_loc}/tgeshka/tgeshka_settings.h
     ${src_loc}/tgeshka/tgeshka_transport_bridge.cpp
     ${src_loc}/tgeshka/tgeshka_transport_bridge.h
+    ${src_loc}/tgeshka/tgeshka_update.cpp
+    ${src_loc}/tgeshka/tgeshka_update.h
+    ${src_loc}/tgeshka/tgeshka_update_ui.cpp
+    ${src_loc}/tgeshka/tgeshka_update_ui.h
+    ${src_loc}/tgeshka/tgeshka_update_verify.cpp
+    ${src_loc}/tgeshka/tgeshka_update_verify.h
 )
 
 # Russian strings for the first launch, before the cloud language pack
@@ -54,4 +60,62 @@ if (TGESHKA_GATEWAY_URL)
     set_property(SOURCE ${src_loc}/tgeshka/tgeshka_gateway.cpp
         APPEND PROPERTY COMPILE_DEFINITIONS
         "TGESHKA_DEFAULT_GATEWAY_URL=\"${TGESHKA_GATEWAY_URL}\"")
+endif()
+
+# TGeshka version of a release build, from its tag (build.ps1 -Version, CI),
+# see docs/updates.md. Empty: the default from tgeshka_brand.h.
+set(TGESHKA_VERSION "" CACHE STRING "TGeshka version, 1.2.3 or 1.2.3-beta.1")
+if (TGESHKA_VERSION)
+    if (NOT TGESHKA_VERSION MATCHES "^[0-9]+([.][0-9]+)([.][0-9]+)?([.][0-9]+)?(-[0-9A-Za-z.]+)?$")
+        message(FATAL_ERROR "Bad TGESHKA_VERSION: ${TGESHKA_VERSION}")
+    endif()
+    target_compile_definitions(Telegram PRIVATE
+        "TGESHKA_VERSION=\"${TGESHKA_VERSION}\"")
+endif()
+
+# Own updates use the stock Updater.exe only to install a package checked
+# by tgeshka_update.cpp. Upstream builds it only with its auto-update,
+# which stays disabled here (no requests to Telegram update servers).
+if (WIN32 AND DESKTOP_APP_DISABLE_AUTOUPDATE AND NOT build_winstore)
+    add_executable(Updater WIN32)
+    init_non_host_target(Updater)
+
+    add_dependencies(Telegram Updater)
+
+    nice_target_sources(Updater ${src_loc}
+    PRIVATE
+        _other/updater_win.cpp
+        _other/updater.h
+    )
+
+    set_target_properties(Updater PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${output_folder}
+    )
+
+    get_filename_component(lib_base_loc lib_base REALPATH)
+    nice_target_sources(Updater ${lib_base_loc}
+    PRIVATE
+        base/platform/win/base_windows_safe_library.cpp
+        base/platform/win/base_windows_safe_library.h
+    )
+    target_include_directories(Updater PRIVATE ${lib_base_loc})
+    if (MSVC)
+        target_link_libraries(Updater
+        PRIVATE
+            delayimp
+        )
+        target_link_options(Updater
+        PRIVATE
+            /DELAYLOAD:user32.dll
+            /DELAYLOAD:advapi32.dll
+            /DELAYLOAD:shell32.dll
+            /DELAYLOAD:ole32.dll
+            /DELAYLOAD:shlwapi.dll
+        )
+    else()
+        target_link_options(Updater PRIVATE -municode)
+    endif()
+    if (DESKTOP_APP_WIN7_BASELINE)
+        target_link_options(Updater PRIVATE /SUBSYSTEM:WINDOWS,6.01)
+    endif()
 endif()

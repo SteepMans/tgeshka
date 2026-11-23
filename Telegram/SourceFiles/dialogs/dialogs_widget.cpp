@@ -62,6 +62,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "chat_helpers/message_field.h"
 #include "core/application.h"
 #include "core/update_checker.h"
+#include "tgeshka/tgeshka_update_ui.h"
 #include "core/shortcuts.h"
 #include "window/window_columns.h"
 #include "window/window_controller.h"
@@ -479,6 +480,11 @@ Widget::Widget(
 			checker.isLatest(),
 			checker.failed(),
 			checker.ready()
+		) | rpl::on_next([=] {
+			checkUpdateStatus();
+		}, lifetime());
+	} else {
+		Tgeshka::Update::ReadyButtonChanges(
 		) | rpl::on_next([=] {
 			checkUpdateStatus();
 		}, lifetime());
@@ -2493,26 +2499,36 @@ QPixmap Widget::grabForFolderSlideAnimation() {
 }
 
 void Widget::checkUpdateStatus() {
-	Expects(!Core::UpdaterDisabled());
-
 	if (_layout == Layout::Child) {
 		return;
 	}
 
 	using Checker = Core::UpdateChecker;
-	if (Checker().state() == Checker::State::Ready) {
+	const auto tgeshka = Core::UpdaterDisabled()
+		? Tgeshka::Update::ReadyButtonText()
+		: std::nullopt;
+	if (tgeshka
+		|| (!Core::UpdaterDisabled()
+			&& Checker().state() == Checker::State::Ready)) {
 		if (_updateTelegram) {
+			if (tgeshka) {
+				_updateTelegram->setText(*tgeshka);
+			}
 			return;
 		}
 		_updateTelegram.create(
 			this,
-			tr::lng_update_telegram(tr::now),
+			tgeshka.value_or(tr::lng_update_telegram(tr::now)),
 			st::dialogsUpdateButton,
 			st::dialogsInstallUpdate,
 			st::dialogsInstallUpdateOver,
 			true);
 		_updateTelegram->show();
 		_updateTelegram->setClickedCallback([] {
+			if (Core::UpdaterDisabled()) {
+				Tgeshka::Update::ReadyButtonClicked();
+				return;
+			}
 			Core::checkReadyUpdate();
 			Core::Restart();
 		});

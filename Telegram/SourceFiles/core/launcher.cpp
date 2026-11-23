@@ -17,6 +17,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/update_checker.h"
 #include "core/sandbox.h"
 #include "core/version.h"
+#include "tgeshka/tgeshka_update.h"
 #include "base/concurrent_timer.h"
 #include "base/options.h"
 
@@ -428,7 +429,8 @@ int Launcher::exec() {
 
 	DEBUG_LOG(("Telegram finished, result: %1").arg(result));
 
-	if (!UpdaterDisabled() && cRestartingUpdate()) {
+	if ((!UpdaterDisabled() || Tgeshka::Update::InstallPrepared())
+		&& cRestartingUpdate()) {
 		DEBUG_LOG(("Sandbox Info: executing updater to install update."));
 		if (!launchUpdater(UpdaterLaunch::PerformUpdate)) {
 			base::Platform::DeleteDirectory(cWorkingDir() + u"tupdates/temp"_q);
