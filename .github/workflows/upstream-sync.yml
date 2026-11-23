@@ -135,6 +135,8 @@ jobs:
     if: needs.merge.outputs.result == 'clean'
     permissions:
       contents: write
+      # windows.yml looks up main builds to reuse for release tags.
+      actions: read
     uses: ./.github/workflows/windows.yml
     with:
       ref: ${{ needs.merge.outputs.sha }}
