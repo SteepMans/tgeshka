@@ -224,14 +224,14 @@ try {
     $vsMajor = ((& $vswhere -path $vsPath -property installationVersion) -split '\.')[0]
     if ($Generator -eq 'Ninja') {
         # cl.exe of the vcvars environment above, the same toolset as the prepared libraries.
-        $generator = 'Ninja Multi-Config'
+        $cmakeGenerator = 'Ninja Multi-Config'
         $toolsetArg = "cl $($env:VCToolsVersion.TrimEnd('\'))"
     } else {
-        $generator = switch ($vsMajor) { '17' { 'Visual Studio 17 2022' } '18' { 'Visual Studio 18 2026' } default { Fail "unsupported Visual Studio $vsMajor" } }
+        $cmakeGenerator = switch ($vsMajor) { '17' { 'Visual Studio 17 2022' } '18' { 'Visual Studio 18 2026' } default { Fail "unsupported Visual Studio $vsMajor" } }
         $toolsetArg = "v143,version=$($env:VCToolsVersion.TrimEnd('\'))"
     }
     if ($CompilerLauncher -and $Generator -ne 'Ninja') { Fail '-CompilerLauncher needs -Generator Ninja (MSBuild ignores launchers)' }
-    $apiContent += "# generator: $generator, toolset: $toolsetArg`n"
+    $apiContent += "# generator: $cmakeGenerator, toolset: $toolsetArg`n"
     if ($CompilerLauncher) {
         $launcher = (Get-Command $CompilerLauncher -ErrorAction Stop).Source -replace '\\', '/'
         $apiContent += "set(CMAKE_C_COMPILER_LAUNCHER `"$launcher`" CACHE STRING `"`" FORCE)`n" +
@@ -246,15 +246,15 @@ try {
     $cacheFile = Join-Path $Out 'CMakeCache.txt'
     $configured = Join-Path $Out 'configured.stamp'
     if ($Reconfigure -or $apiChanged -or -not (Test-Path $cacheFile) -or -not (Test-Path $configured)) {
-        Step "Configuring ($generator, x64, $toolsetArg)"
+        Step "Configuring ($cmakeGenerator, x64, $toolsetArg)"
         # Fresh cache: generator toolset cannot change in an existing one; values come from $apiCache.
         Remove-Item -Force -ErrorAction SilentlyContinue $cacheFile, $configured
         Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $Out 'CMakeFiles')
         Push-Location (Join-Path $Repo 'Telegram')
         if ($Generator -eq 'Ninja') {
-            Invoke-Native python @('configure.py', '-G', $generator, '-C', $apiCache)
+            Invoke-Native python @('configure.py', '-G', $cmakeGenerator, '-C', $apiCache)
         } else {
-            Invoke-Native python @('configure.py', '-G', $generator, '-Ax64', '-T', $toolsetArg, '-C', $apiCache)
+            Invoke-Native python @('configure.py', '-G', $cmakeGenerator, '-Ax64', '-T', $toolsetArg, '-C', $apiCache)
         }
         Pop-Location
         Set-Content -Path $configured -Value (Get-Date -Format s)
