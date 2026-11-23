@@ -59,6 +59,12 @@ bool DarkTasbarValueValid/* = false*/;
 	return (value == 0);
 }
 
+// TGeshka: unread counter in the dark violet of the logo, not red.
+[[nodiscard]] style::color TgeshkaCounterBg() {
+	static const auto result = style::owned_color(QColor(0x5b, 0x42, 0xc9));
+	return result.color();
+}
+
 [[nodiscard]] QImage MonochromeIconFor(int size, bool darkMode) {
 	Expects(size > 0);
 
@@ -316,7 +322,7 @@ Window::CounterLayerArgs Tray::CounterLayerArgs(
 	return Window::CounterLayerArgs{
 		.size = size,
 		.count = counter,
-		.bg = muted ? st::trayCounterBgMute : st::trayCounterBg,
+		.bg = muted ? st::trayCounterBgMute : TgeshkaCounterBg(),
 		.fg = st::trayCounterFg,
 	};
 }
@@ -410,7 +416,7 @@ QString Tray::QuitJumpListIconPath() {
 		return path;
 	}
 	const auto color = !dark
-		? st::trayCounterBg->c
+		? TgeshkaCounterBg()->c
 		: *dark
 		? QColor(255, 255, 255)
 		: QColor(0, 0, 0, 228);

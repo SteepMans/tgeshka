@@ -13,8 +13,19 @@ PRIVATE
     ${src_loc}/tgeshka/tgeshka_gateway.h
     ${src_loc}/tgeshka/tgeshka_integration.cpp
     ${src_loc}/tgeshka/tgeshka_integration.h
+    ${src_loc}/tgeshka/tgeshka_lang.cpp
+    ${src_loc}/tgeshka/tgeshka_lang.h
+    ${src_loc}/tgeshka/tgeshka_settings.cpp
+    ${src_loc}/tgeshka/tgeshka_settings.h
     ${src_loc}/tgeshka/tgeshka_transport_bridge.cpp
     ${src_loc}/tgeshka/tgeshka_transport_bridge.h
+)
+
+# Russian strings for the first launch, before the cloud language pack
+# can be loaded through the gateway.
+nice_target_sources(Telegram ${res_loc}
+PRIVATE
+    qrc/tgeshka/tgeshka.qrc
 )
 
 file(STRINGS ${src_loc}/tgeshka/tgeshka_brand.h tgeshka_app_file_line

@@ -32,9 +32,6 @@ void ConsumeStartUrls(QList<QUrl> &urls);
 // Before login: asks for the access key if the gateway has none.
 void OnIntroShown(not_null<Window::Controller*> window);
 
-// Settings > Advanced > Data and storage, under "Connection type".
-void AddGatewaySettingsButton(Settings::Builder::SectionBuilder &builder);
-
 // First paragraph of the About box.
 [[nodiscard]] rpl::producer<TextWithEntities> AboutText();
 

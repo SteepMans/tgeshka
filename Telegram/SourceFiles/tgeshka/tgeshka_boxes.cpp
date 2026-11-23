@@ -5,6 +5,7 @@ based on Telegram Desktop (GPLv3).
 #include "tgeshka/tgeshka_boxes.h"
 
 #include "tgeshka/tgeshka_gateway.h"
+#include "tgeshka/tgeshka_lang.h"
 #include "ui/layers/generic_box.h"
 #include "ui/ui_utility.h"
 #include "ui/vertical_list.h"
@@ -27,34 +28,36 @@ namespace {
 		const GatewayConfig &config,
 		GatewayStatus status) {
 	if (!config.hasUrl()) {
-		return u"Нет адреса шлюза"_q;
+		return Tr(u"No gateway address"_q, u"Нет адреса шлюза"_q);
 	} else if (!config.hasToken()) {
-		return u"Нет ключа доступа"_q;
+		return Tr(u"No access key"_q, u"Нет ключа доступа"_q);
 	}
 	switch (status) {
-	case GatewayStatus::Connected: return u"Подключено"_q;
-	case GatewayStatus::Rejected: return u"Шлюз не принял ключ"_q;
-	case GatewayStatus::Failed: return u"Шлюз недоступен"_q;
+	case GatewayStatus::Connected: return Tr(u"Connected"_q, u"Подключено"_q);
+	case GatewayStatus::Rejected: return Tr(u"The gateway rejected the key"_q, u"Шлюз не принял ключ"_q);
+	case GatewayStatus::Failed: return Tr(u"The gateway is unreachable"_q, u"Шлюз недоступен"_q);
 	case GatewayStatus::Connecting:
 	case GatewayStatus::Unknown: break;
 	}
-	return u"Подключение к шлюзу..."_q;
+	return Tr(u"Connecting to the gateway..."_q, u"Подключение к шлюзу..."_q);
 }
 
 [[nodiscard]] QString CheckLine(const KeyCheckResult &result) {
 	switch (result.type) {
 	case KeyCheckResult::Type::Ok:
 		return result.maxConnections
-			? u"Ключ действителен, соединений: %1 из %2"_q
+			? Tr(
+				u"The key is valid, connections: %1 of %2"_q,
+				u"Ключ действителен, соединений: %1 из %2"_q)
 				.arg(result.activeConnections)
 				.arg(result.maxConnections)
-			: u"Ключ действителен"_q;
+			: Tr(u"The key is valid"_q, u"Ключ действителен"_q);
 	case KeyCheckResult::Type::Rejected:
-		return u"Шлюз не принял ключ: проверьте ключ и адрес"_q;
+		return Tr(u"The gateway rejected the key: check the key and the address"_q, u"Шлюз не принял ключ: проверьте ключ и адрес"_q);
 	case KeyCheckResult::Type::Unreachable:
 		break;
 	}
-	return u"Шлюз сейчас недоступен"_q;
+	return Tr(u"The gateway is unreachable now"_q, u"Шлюз сейчас недоступен"_q);
 }
 
 [[nodiscard]] QString ClipboardText() {
@@ -107,36 +110,39 @@ rpl::producer<QString> GatewayStatusText() {
 }
 
 void GatewaySettingsBox(not_null<Ui::GenericBox*> box) {
-	box->setTitle(rpl::single(u"Подключение через шлюз"_q));
+	box->setTitle(rpl::single(Tr(u"Gateway connection"_q, u"Подключение через шлюз"_q)));
 	box->setWidth(st::boxWideWidth);
 
 	const auto initial = CurrentGatewayConfig();
 
 	AddLabel(
 		box,
-		rpl::single(u"Клиент ходит в Telegram через ваш шлюз по WebSocket. "
-			"Ключ доступа выдаёт владелец шлюза."_q),
+		rpl::single(Tr(
+			u"The client reaches Telegram through your gateway over "
+			"WebSocket. The access key is issued by the gateway owner."_q,
+			u"Клиент ходит в Telegram через ваш шлюз по WebSocket. "
+			"Ключ доступа выдаёт владелец шлюза."_q)),
 		st::boxDividerLabel);
 	Ui::AddSkip(box->verticalLayout());
 
 	const auto url = box->addRow(object_ptr<Ui::InputField>(
 		box,
 		st::defaultInputField,
-		rpl::single(u"Адрес шлюза"_q),
+		rpl::single(Tr(u"Gateway address"_q, u"Адрес шлюза"_q)),
 		initial.url));
 	Ui::AddSkip(box->verticalLayout());
 
 	const auto token = AddPasswordField(
 		box,
 		(initial.hasToken()
-			? u"Ключ сохранён, введите новый для замены"_q
-			: u"Ключ доступа"_q),
+			? Tr(u"The key is saved, enter a new one to replace it"_q, u"Ключ сохранён, введите новый для замены"_q)
+			: Tr(u"Access key"_q, u"Ключ доступа"_q)),
 		QString());
 	Ui::AddSkip(box->verticalLayout());
 
 	const auto paste = box->addRow(object_ptr<Ui::LinkButton>(
 		box,
-		u"Вставить ключ или ссылку из буфера обмена"_q));
+		Tr(u"Paste a key or a link from the clipboard"_q, u"Вставить ключ или ссылку из буфера обмена"_q)));
 	Ui::AddSkip(box->verticalLayout());
 
 	const auto check = box->lifetime().make_state<rpl::variable<QString>>();
@@ -147,8 +153,8 @@ void GatewaySettingsBox(not_null<Ui::GenericBox*> box) {
 			check->value()
 		) | rpl::map([](const QString &status, const QString &check) {
 			return check.isEmpty()
-				? (u"Статус: "_q + status)
-				: (u"Статус: "_q + status + '\n' + check);
+				? (Tr(u"Status: "_q, u"Статус: "_q) + status)
+				: (Tr(u"Status: "_q, u"Статус: "_q) + status + '\n' + check);
 		}),
 		st::boxDividerLabel);
 
@@ -157,7 +163,7 @@ void GatewaySettingsBox(not_null<Ui::GenericBox*> box) {
 			*check = QString();
 			return;
 		}
-		*check = u"Проверка ключа..."_q;
+		*check = Tr(u"Checking the key..."_q, u"Проверка ключа..."_q);
 		const auto weak = QPointer<Ui::GenericBox>(box.get());
 		CheckAccessKey(gateway, key, [=](KeyCheckResult result) {
 			if (weak) {
@@ -172,7 +178,7 @@ void GatewaySettingsBox(not_null<Ui::GenericBox*> box) {
 	paste->setClickedCallback([=] {
 		auto parsed = GatewayConfig{ .url = url->getLastText().trimmed() };
 		if (!ParseAccessKey(ClipboardText(), parsed)) {
-			*check = u"В буфере обмена нет ключа доступа"_q;
+			*check = Tr(u"No access key in the clipboard"_q, u"В буфере обмена нет ключа доступа"_q);
 			return;
 		}
 		url->setText(parsed.url);
@@ -204,12 +210,12 @@ void GatewaySettingsBox(not_null<Ui::GenericBox*> box) {
 		SetGatewayConfig(result);
 		box->closeBox();
 	};
-	box->addButton(rpl::single(u"Сохранить"_q), save);
-	box->addButton(rpl::single(u"Отмена"_q), [=] { box->closeBox(); });
+	box->addButton(rpl::single(Tr(u"Save"_q, u"Сохранить"_q)), save);
+	box->addButton(rpl::single(Tr(u"Cancel"_q, u"Отмена"_q)), [=] { box->closeBox(); });
 }
 
 void AccessKeyBox(not_null<Ui::GenericBox*> box) {
-	box->setTitle(rpl::single(u"Вставьте ключ доступа"_q));
+	box->setTitle(rpl::single(Tr(u"Paste the access key"_q, u"Вставьте ключ доступа"_q)));
 	box->setWidth(st::boxWideWidth);
 	box->setCloseByEscape(false);
 	box->setCloseByOutsideClick(false);
@@ -218,39 +224,48 @@ void AccessKeyBox(not_null<Ui::GenericBox*> box) {
 	AddLabel(
 		box,
 		rpl::single(askUrl
-			? u"Ключ и адрес шлюза выдаёт его владелец: ссылка "
+			? Tr(
+				u"The gateway owner issues the address and the key: a link "
+				"tgeshka://gateway?url=...&token=... or an address wss://... "
+				"and a key tc_... Then the usual Telegram login opens."_q,
+				u"Ключ и адрес шлюза выдаёт его владелец: ссылка "
 				"tgeshka://gateway?url=...&token=... или адрес wss://... "
-				"и ключ tc_... После них откроется обычный вход в Telegram."_q
-			: u"Ключ выдаёт владелец шлюза: строка вида tc_... "
+				"и ключ tc_... После них откроется обычный вход в Telegram."_q)
+			: Tr(
+				u"The gateway owner issues the key: a string tc_... "
+				"or a link tgeshka://gateway?... "
+				"Then the usual Telegram login opens."_q,
+				u"Ключ выдаёт владелец шлюза: строка вида tc_... "
 				"или ссылка tgeshka://gateway?... "
-				"После него откроется обычный вход в Telegram."_q),
+				"После него откроется обычный вход в Telegram."_q)),
 		st::boxLabel);
 	Ui::AddSkip(box->verticalLayout());
 
 	auto fromClipboard = GatewayConfig{ .url = CurrentGatewayConfig().url };
 	const auto found = ParseAccessKey(ClipboardText(), fromClipboard);
 
-	const auto urlField = askUrl
-		? box->addRow(object_ptr<Ui::InputField>(
+	Ui::InputField *urlField = nullptr;
+	if (askUrl) {
+		urlField = box->addRow(object_ptr<Ui::InputField>(
 			box,
 			st::defaultInputField,
-			rpl::single(u"Адрес шлюза (не нужен для ссылки)"_q),
-			found ? fromClipboard.url : QString())).get()
-		: nullptr;
-	if (urlField) {
+			rpl::single(Tr(
+				u"Gateway address (not needed for a link)"_q,
+				u"Адрес шлюза (не нужен для ссылки)"_q)),
+			found ? fromClipboard.url : QString()));
 		Ui::AddSkip(box->verticalLayout());
 	}
 
 	const auto field = AddPasswordField(
 		box,
-		u"Ключ доступа или ссылка"_q,
+		Tr(u"Access key or link"_q, u"Ключ доступа или ссылка"_q),
 		found ? fromClipboard.token : QString());
 	Ui::AddSkip(box->verticalLayout());
 
 	const auto pending = box->lifetime().make_state<GatewayConfig>(
 		found ? fromClipboard : CurrentGatewayConfig());
 	const auto status = box->lifetime().make_state<rpl::variable<QString>>(
-		found ? u"Ключ найден в буфере обмена"_q : QString());
+		found ? Tr(u"A key was found in the clipboard"_q, u"Ключ найден в буфере обмена"_q) : QString());
 	AddLabel(box, status->value(), st::boxDividerLabel);
 
 	const auto busy = box->lifetime().make_state<bool>(false);
@@ -272,7 +287,7 @@ void AccessKeyBox(not_null<Ui::GenericBox*> box) {
 			const auto typed = urlField->getLastText().trimmed();
 			if (!typed.isEmpty() && !IsValidGatewayUrl(typed)) {
 				urlField->showError();
-				*status = u"Адрес шлюза начинается с wss://"_q;
+				*status = Tr(u"The gateway address starts with wss://"_q, u"Адрес шлюза начинается с wss://"_q);
 				return;
 			}
 			parsed.url = typed;
@@ -281,18 +296,18 @@ void AccessKeyBox(not_null<Ui::GenericBox*> box) {
 		if (!ParseAccessKey(text, parsed)
 			&& !ParseAccessKey(ClipboardText(), parsed)) {
 			field->showError();
-			*status = u"Это не похоже на ключ доступа"_q;
+			*status = Tr(u"This does not look like an access key"_q, u"Это не похоже на ключ доступа"_q);
 			return;
 		}
 		if (!IsValidGatewayUrl(parsed.url)) {
 			if (urlField) {
 				urlField->showError();
 			}
-			*status = u"Укажите адрес шлюза или вставьте ссылку"_q;
+			*status = Tr(u"Enter the gateway address or paste a link"_q, u"Укажите адрес шлюза или вставьте ссылку"_q);
 			return;
 		}
 		*busy = true;
-		*status = u"Проверка ключа..."_q;
+		*status = Tr(u"Checking the key..."_q, u"Проверка ключа..."_q);
 		CheckAccessKey(parsed.url, parsed.token, [=](KeyCheckResult r) {
 			if (!weak) {
 				return;
@@ -313,8 +328,8 @@ void AccessKeyBox(not_null<Ui::GenericBox*> box) {
 			}
 		});
 	};
-	box->addButton(rpl::single(u"Продолжить"_q), submit);
-	box->addLeftButton(rpl::single(u"Позже"_q), [=] { box->closeBox(); });
+	box->addButton(rpl::single(Tr(u"Continue"_q, u"Продолжить"_q)), submit);
+	box->addLeftButton(rpl::single(Tr(u"Later"_q, u"Позже"_q)), [=] { box->closeBox(); });
 	box->setFocusCallback([=] { field->setFocusFast(); });
 
 	// The key may arrive by a tgeshka:// link while the box is open.
