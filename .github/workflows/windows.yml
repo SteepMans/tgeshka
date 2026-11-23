@@ -136,6 +136,12 @@ jobs:
     env:
       # Bump to drop the cached dependencies.
       DEPS_CACHE_VERSION: v1
+      # 'sccache': Ninja + sccache without precompiled headers and debug info, objects kept
+      # in actions/cache; empty: Visual Studio/MSBuild with precompiled headers.
+      COMPILE_CACHE: sccache
+      SCCACHE_VERSION: v0.19.0
+      SCCACHE_DIR: D:\sccache
+      SCCACHE_CACHE_SIZE: 6G
 
     defaults:
       run:
@@ -311,10 +317,41 @@ jobs:
           maximum-size: 32GB
           disk-root: 'D:'
 
+      - name: Install sccache
+        if: env.COMPILE_CACHE == 'sccache'
+        run: |
+          $name = "sccache-$env:SCCACHE_VERSION-x86_64-pc-windows-msvc"
+          $zip = Join-Path $env:RUNNER_TEMP "$name.zip"
+          Invoke-WebRequest "https://github.com/mozilla/sccache/releases/download/$env:SCCACHE_VERSION/$name.zip" -OutFile $zip
+          Invoke-WebRequest "https://github.com/mozilla/sccache/releases/download/$env:SCCACHE_VERSION/$name.zip.sha256" -OutFile "$zip.sha256"
+          $expected = ((Get-Content "$zip.sha256" -Raw).Trim() -split '\s+')[0]
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne $expected) { throw 'sccache checksum mismatch' }
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          "$env:RUNNER_TEMP\$name" >> $env:GITHUB_PATH
+          # Branch caches start from main's objects (restore-keys below).
+          "COMPILE_CACHE_KEY=sccache-$env:SCCACHE_VERSION-$env:DEPS_KEY" >> $env:GITHUB_ENV
+
+      - name: Restore compile cache
+        if: env.COMPILE_CACHE == 'sccache'
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: ${{ env.COMPILE_CACHE_KEY }}-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ${{ env.COMPILE_CACHE_KEY }}-${{ github.ref_name }}-
+            ${{ env.COMPILE_CACHE_KEY }}-main-
+
       - name: Build
         run: |
           # 3 jobs: 2 projects x 2 files at a time, four cl.exe fit into memory.
           $options = @{ Jobs = 3; MinFreeGB = 10; GatewayFile = $env:GATEWAY_FILE }
+          if ($env:COMPILE_CACHE -eq 'sccache') {
+            # A cached compile cannot use a precompiled header; one Ninja pool of 4 cl.exe.
+            $options += @{ Generator = 'Ninja'; CompilerLauncher = 'sccache'; NoPch = $true; NoDebugInfo = $true }
+            $options.Jobs = 4
+            sccache --start-server
+            sccache --zero-stats | Out-Null
+          }
           if ($env:OFFICIAL -eq '1') { $options.ApiFile = $env:API_FILE } else { $options.TestApi = $true }
           # A release tag v1.2.3 / v1.2.3-beta.1 is the TGeshka version (docs/updates.md).
           if ($env:GITHUB_REF -like 'refs/tags/v*' -and -not '${{ inputs.ref }}') { $options.Version = $env:GITHUB_REF_NAME.Substring(1) }
@@ -323,6 +360,17 @@ jobs:
           $zip = Get-ChildItem "$env:TBUILD\tdesktop\out\*.zip" | Select-Object -First 1
           "ZIP=$($zip.FullName)" >> $env:GITHUB_ENV
           "ZIP_NAME=$($zip.BaseName)" >> $env:GITHUB_ENV
+
+      - name: Compile cache stats
+        if: always() && env.COMPILE_CACHE == 'sccache'
+        run: sccache --show-stats; sccache --stop-server; exit 0
+
+      - name: Save compile cache
+        if: always() && env.COMPILE_CACHE == 'sccache' && github.event_name != 'pull_request'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: ${{ env.COMPILE_CACHE_KEY }}-${{ github.ref_name }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7

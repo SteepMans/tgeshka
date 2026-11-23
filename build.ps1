@@ -35,6 +35,11 @@
   .\build.ps1 -Ref origin/main                    # checkout a ref (clean tree required) and build
   .\build.ps1 -Release v0.1.1                     # build, then publish zip as a GitHub Release with this tag
   .\build.ps1 -Version 0.1.2-beta                 # build with this TGeshka version
+  .\build.ps1 -Generator Ninja -CompilerLauncher sccache -NoPch -NoDebugInfo   # CI compile cache
+
+  -Generator Ninja builds with Ninja Multi-Config instead of Visual Studio/MSBuild (one -Jobs
+  pool for all targets). -CompilerLauncher (sccache/ccache) needs Ninja; a cached compile cannot
+  use a precompiled header (/Yu), hence -NoPch, and -NoDebugInfo keeps the cached objects small.
 #>
 [CmdletBinding()]
 param(
@@ -52,7 +57,12 @@ param(
     [string]$GatewayFile = (Join-Path $env:USERPROFILE '.config\tg-fork\gateway.txt'),
     [string]$SharedLock = $env:TGESHKA_BUILD_LOCK,
     [int]$LockWaitMinutes = 240,
-    [int]$MinFreeGB = 20
+    [int]$MinFreeGB = 20,
+    [ValidateSet('VS', 'Ninja')]
+    [string]$Generator = 'VS',
+    [string]$CompilerLauncher,
+    [switch]$NoPch,
+    [switch]$NoDebugInfo
 )
 
 $ErrorActionPreference = 'Stop'
@@ -212,9 +222,23 @@ try {
     # The application must use the same MSVC toolset as the prepared libraries (vcvars one):
     # plain "-T v143" lets MSBuild pick its default (older) toolset and the link fails.
     $vsMajor = ((& $vswhere -path $vsPath -property installationVersion) -split '\.')[0]
-    $generator = switch ($vsMajor) { '17' { 'Visual Studio 17 2022' } '18' { 'Visual Studio 18 2026' } default { Fail "unsupported Visual Studio $vsMajor" } }
-    $toolsetArg = "v143,version=$($env:VCToolsVersion.TrimEnd('\'))"
+    if ($Generator -eq 'Ninja') {
+        # cl.exe of the vcvars environment above, the same toolset as the prepared libraries.
+        $generator = 'Ninja Multi-Config'
+        $toolsetArg = "cl $($env:VCToolsVersion.TrimEnd('\'))"
+    } else {
+        $generator = switch ($vsMajor) { '17' { 'Visual Studio 17 2022' } '18' { 'Visual Studio 18 2026' } default { Fail "unsupported Visual Studio $vsMajor" } }
+        $toolsetArg = "v143,version=$($env:VCToolsVersion.TrimEnd('\'))"
+    }
+    if ($CompilerLauncher -and $Generator -ne 'Ninja') { Fail '-CompilerLauncher needs -Generator Ninja (MSBuild ignores launchers)' }
     $apiContent += "# generator: $generator, toolset: $toolsetArg`n"
+    if ($CompilerLauncher) {
+        $launcher = (Get-Command $CompilerLauncher -ErrorAction Stop).Source -replace '\\', '/'
+        $apiContent += "set(CMAKE_C_COMPILER_LAUNCHER `"$launcher`" CACHE STRING `"`" FORCE)`n" +
+            "set(CMAKE_CXX_COMPILER_LAUNCHER `"$launcher`" CACHE STRING `"`" FORCE)`n"
+    }
+    if ($NoPch) { $apiContent += "set(CMAKE_DISABLE_PRECOMPILE_HEADERS ON CACHE BOOL `"`" FORCE)`n" }
+    if ($NoDebugInfo) { $apiContent += "set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT `"`" CACHE STRING `"`" FORCE)`n" }
     $previous = if (Test-Path $apiCache) { [IO.File]::ReadAllText($apiCache) } else { '' }
     $apiChanged = $previous -ne $apiContent
     if ($apiChanged) { [IO.File]::WriteAllText($apiCache, $apiContent) }
@@ -227,7 +251,11 @@ try {
         Remove-Item -Force -ErrorAction SilentlyContinue $cacheFile, $configured
         Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $Out 'CMakeFiles')
         Push-Location (Join-Path $Repo 'Telegram')
-        Invoke-Native python @('configure.py', '-G', $generator, '-Ax64', '-T', $toolsetArg, '-C', $apiCache)
+        if ($Generator -eq 'Ninja') {
+            Invoke-Native python @('configure.py', '-G', $generator, '-C', $apiCache)
+        } else {
+            Invoke-Native python @('configure.py', '-G', $generator, '-Ax64', '-T', $toolsetArg, '-C', $apiCache)
+        }
         Pop-Location
         Set-Content -Path $configured -Value (Get-Date -Format s)
     }
@@ -257,11 +285,17 @@ try {
         }
         Write-Host "Using local C++/WinRT projections: $winrtInclude"
         $msbuildArgs += '/p:IncludePath=' + (("$winrtInclude;$env:INCLUDE").TrimEnd(';') -replace ';', '%3B')
+        $env:INCLUDE = "$winrtInclude;$env:INCLUDE"
     }
 
-    Step "Building Release ($projects projects x $perProject files, $freeGB GB free)"
     $t = Get-Date
-    Invoke-Native cmake (@('--build', $Out, '--config', 'Release', '--target', 'Telegram', '--parallel', "$projects", '--') + $msbuildArgs)
+    if ($Generator -eq 'Ninja') {
+        Step "Building Release (Ninja, $Jobs jobs, $freeGB GB free)"
+        Invoke-Native cmake @('--build', $Out, '--config', 'Release', '--target', 'Telegram', '--parallel', "$Jobs")
+    } else {
+        Step "Building Release ($projects projects x $perProject files, $freeGB GB free)"
+        Invoke-Native cmake (@('--build', $Out, '--config', 'Release', '--target', 'Telegram', '--parallel', "$projects", '--') + $msbuildArgs)
+    }
     Step ("Build done in {0:hh\:mm\:ss}" -f ((Get-Date) - $t))
 
     # Executable / package names come from the brand header when the branch has one.
