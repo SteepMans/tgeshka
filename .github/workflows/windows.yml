@@ -42,10 +42,15 @@ jobs:
     steps:
       - name: Prepare directories
         run: |
-          # Build tree on C: (more free space than D:).
-          New-Item -ItemType Directory -Force "$env:USERPROFILE\TBuild\Libraries", "$env:USERPROFILE\TBuild\ThirdParty" | Out-Null
-          "TBUILD=$env:USERPROFILE\TBuild" >> $env:GITHUB_ENV
+          # C: has about 30 GB free, not enough for Qt; D: has about 150 GB. The tree lives
+          # on D: behind a junction so the cache paths (part of the cache version) stay the same.
           Get-PSDrive C, D -ErrorAction SilentlyContinue | Format-Table Name, @{n='FreeGB';e={[int]($_.Free/1GB)}}
+          $data = if (Test-Path 'D:\') { 'D:\TBuild' } else { "$env:USERPROFILE\TBuild.data" }
+          New-Item -ItemType Directory -Force "$data\Libraries", "$data\ThirdParty" | Out-Null
+          $tbuild = "$env:USERPROFILE\TBuild"
+          if (-not (Test-Path $tbuild)) { New-Item -ItemType Junction -Path $tbuild -Target $data | Out-Null }
+          "TBUILD=$tbuild" >> $env:GITHUB_ENV
+          Get-Item $tbuild | Format-List FullName, LinkType, Target
 
       - name: Checkout sources
         uses: actions/checkout@v7
