@@ -45,6 +45,17 @@ jobs:
           for run in $runs; do
             artifact=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts" --jq '[.artifacts[] | select(.expired | not) | select(.name | test("^TGeshka-.*-win64"))][0].name // empty')
             if [ -n "$artifact" ]; then
+              # The exe carries its version from compile time, so a main build with another
+              # version (a beta tag promoted to stable, tgeshka_brand.h not bumped) is rebuilt.
+              dir="$RUNNER_TEMP/check-$run"
+              gh run download "$run" --repo "$GITHUB_REPOSITORY" --name "$artifact" --dir "$dir"
+              src=$(ls "$dir"/*.zip | head -n 1)
+              inside=$(unzip -p "$src" 'TGeshka/tgeshka-version.txt' | tr -d '[:space:]')
+              rm -rf "$dir"
+              if [ "$inside" != "${GITHUB_REF_NAME#v}" ]; then
+                echo "Main build $run is version '$inside', tag is $GITHUB_REF_NAME: full build"
+                continue
+              fi
               echo "run_id=$run" >> "$GITHUB_OUTPUT"
               echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
               echo "Reusing $artifact from run $run"
