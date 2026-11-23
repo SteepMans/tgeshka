@@ -42,15 +42,12 @@ jobs:
     steps:
       - name: Prepare directories
         run: |
-          # C: has about 30 GB free, not enough for Qt; D: has about 150 GB. The tree lives
-          # on D: behind a junction so the cache paths (part of the cache version) stay the same.
+          # C: has about 30 GB free, not enough for Qt; D: has about 150 GB. A real directory,
+          # not a junction: prepare.py resolves links and keys its stages by the resolved path.
           Get-PSDrive C, D -ErrorAction SilentlyContinue | Format-Table Name, @{n='FreeGB';e={[int]($_.Free/1GB)}}
-          $data = if (Test-Path 'D:\') { 'D:\TBuild' } else { "$env:USERPROFILE\TBuild.data" }
-          New-Item -ItemType Directory -Force "$data\Libraries", "$data\ThirdParty" | Out-Null
-          $tbuild = "$env:USERPROFILE\TBuild"
-          if (-not (Test-Path $tbuild)) { New-Item -ItemType Junction -Path $tbuild -Target $data | Out-Null }
+          $tbuild = if (Test-Path 'D:\') { 'D:\TBuild' } else { "$env:USERPROFILE\TBuild" }
+          New-Item -ItemType Directory -Force "$tbuild\Libraries", "$tbuild\ThirdParty" | Out-Null
           "TBUILD=$tbuild" >> $env:GITHUB_ENV
-          Get-Item $tbuild | Format-List FullName, LinkType, Target
 
       - name: Checkout sources
         uses: actions/checkout@v7
