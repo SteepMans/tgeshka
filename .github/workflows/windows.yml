@@ -171,9 +171,19 @@ jobs:
             "GATEWAY_FILE=$env:RUNNER_TEMP\no-gateway.txt" >> $env:GITHUB_ENV
           }
 
+      - name: Page file
+        # 16 GB of RAM is not enough for parallel cl.exe with the large precompiled header
+        # (C1060 compiler is out of heap space); the page file on D: covers the peaks.
+        uses: al-cheb/configure-pagefile-action@9b6da52fb72a3c6147c1aad2df22d8d905681adc # v1.5
+        with:
+          minimum-size: 16GB
+          maximum-size: 32GB
+          disk-root: 'D:'
+
       - name: Build
         run: |
-          $options = @{ Jobs = [Environment]::ProcessorCount; MinFreeGB = 10; GatewayFile = $env:GATEWAY_FILE }
+          # 3 jobs: 2 projects x 2 files at a time, four cl.exe fit into memory.
+          $options = @{ Jobs = 3; MinFreeGB = 10; GatewayFile = $env:GATEWAY_FILE }
           if ($env:OFFICIAL -eq '1') { $options.ApiFile = $env:API_FILE } else { $options.TestApi = $true }
           # A release tag v1.2.3 / v1.2.3-beta.1 is the TGeshka version (docs/updates.md).
           if ($env:GITHUB_REF -like 'refs/tags/v*' -and -not '${{ inputs.ref }}') { $options.Version = $env:GITHUB_REF_NAME.Substring(1) }
