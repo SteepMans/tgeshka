@@ -6,6 +6,7 @@ For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/sections/settings_main.h"
+#include "tgeshka/tgeshka_settings.h"
 
 #include "settings/settings_common_session.h"
 
@@ -432,6 +433,8 @@ void BuildSectionButtons(SectionBuilder &builder) {
 			.shown = std::move(shownProducer),
 		});
 	}
+
+	Tgeshka::AddSettingsSectionButton(builder);
 
 	builder.addSectionButton({
 		.title = tr::lng_settings_advanced(),

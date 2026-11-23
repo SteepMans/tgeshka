@@ -11,14 +11,20 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtCore/QMutex>
 #include <QtCore/QUrl>
 
+#include <atomic>
+
 namespace MTP {
 namespace {
 
 struct State {
 	QMutex mutex;
 	GatewaySettings settings;
+	QString clientId;
 	bool loaded = false;
 };
+
+std::atomic<int64> TrafficSent = 0;
+std::atomic<int64> TrafficReceived = 0;
 
 [[nodiscard]] State &GlobalState() {
 	static auto result = State();
@@ -108,6 +114,34 @@ void NotifyGatewayError(int code, const QString &reason) {
 	crl::on_main([=] {
 		ErrorsStream().fire({ .code = code, .reason = reason });
 	});
+}
+
+GatewayTraffic GatewayTrafficTotal() {
+	return {
+		.sent = TrafficSent.load(),
+		.received = TrafficReceived.load(),
+	};
+}
+
+void CountGatewayTraffic(int64 sent, int64 received) {
+	if (sent) {
+		TrafficSent += sent;
+	}
+	if (received) {
+		TrafficReceived += received;
+	}
+}
+
+void SetGatewayClientId(const QString &id) {
+	auto &state = GlobalState();
+	QMutexLocker lock(&state.mutex);
+	state.clientId = id;
+}
+
+QString GatewayClientId() {
+	auto &state = GlobalState();
+	QMutexLocker lock(&state.mutex);
+	return state.clientId;
 }
 
 rpl::producer<> GatewayOpened() {

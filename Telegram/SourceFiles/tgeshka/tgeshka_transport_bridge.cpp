@@ -5,6 +5,7 @@ based on Telegram Desktop (GPLv3).
 #include "tgeshka/tgeshka_transport_bridge.h"
 
 #include "tgeshka/tgeshka_gateway.h"
+#include "tgeshka/tgeshka_lang.h"
 #include "core/application.h"
 #include "core/core_gateway.h"
 #include "mtproto/mtproto_gateway.h"
@@ -62,15 +63,18 @@ void StartTransport() {
 	) | rpl::on_next([](const MTP::GatewayError &error) {
 		const auto status = StatusFromError(error.code);
 		SetGatewayStatus(status);
+		SetGatewayLastError(error.code, error.reason);
 		static auto lastToast = crl::time();
 		const auto now = crl::now();
 		if (status == GatewayStatus::Rejected
 			&& (!lastToast || now - lastToast > kToastInterval)) {
 			lastToast = now;
 			if (const auto window = Core::App().activeWindow()) {
-				window->showToast(u"Шлюз не принял ключ доступа. "
-					"Обновите его: Настройки > Продвинутые > "
-					"Подключение через шлюз."_q);
+				window->showToast(Tr(
+					u"The gateway rejected the access key. Update it: "
+					"Settings > TGeshka > Gateway connection."_q,
+					u"Шлюз не принял ключ доступа. Обновите его: "
+					"Настройки > TGeshka > Подключение через шлюз."_q));
 			}
 		}
 	}, Lifetime());

@@ -13,6 +13,10 @@ to plain #define lines with string literals.
 // Shown in window titles, tray, notifications, "About" and installer.
 #define TGESHKA_APP_NAME "TGeshka"
 
+// TGeshka release version (tags vX.Y.Z), separate from the upstream
+// Telegram Desktop version in core/version.h.
+#define TGESHKA_VERSION "0.1.1"
+
 // Executable name without extension and data folder in %APPDATA%.
 #define TGESHKA_APP_FILE "TGeshka"
 

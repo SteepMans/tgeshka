@@ -48,6 +48,23 @@ enum class GatewayStatus {
 void SetGatewayStatus(GatewayStatus status);
 [[nodiscard]] rpl::producer<GatewayStatus> GatewayStatusValue();
 
+// The last connection error from the gateway, for the state screen.
+struct GatewayLastError {
+	int code = 0;
+	QString reason;
+	QDateTime when;
+
+	explicit operator bool() const {
+		return when.isValid();
+	}
+	friend inline bool operator==(
+		const GatewayLastError &,
+		const GatewayLastError &) = default;
+};
+void SetGatewayLastError(int code, const QString &reason);
+[[nodiscard]] rpl::producer<GatewayLastError> GatewayLastErrorValue();
+[[nodiscard]] QString GatewayErrorText(int code, const QString &reason);
+
 [[nodiscard]] bool IsValidToken(const QString &token);
 [[nodiscard]] bool IsValidGatewayUrl(const QString &url);
 
@@ -67,6 +84,9 @@ struct KeyCheckResult {
 	Type type = Type::Unreachable;
 	int activeConnections = 0;
 	int maxConnections = 0;
+	QString description; // Key name given by the gateway owner.
+	QString status; // "active" or other key state from the gateway.
+	crl::time latency = 0; // Request round trip, ms.
 };
 void CheckAccessKey(
 	const QString &url,

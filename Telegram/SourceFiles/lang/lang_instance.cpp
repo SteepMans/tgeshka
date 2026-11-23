@@ -279,6 +279,16 @@ void Instance::switchToCustomFile(const QString &filePath) {
 	}
 }
 
+void Instance::switchToBuiltIn(
+		const Language &language,
+		const QByteArray &content) {
+	reset(language);
+	loadFromContent(content);
+	updatePluralRules();
+	Local::writeLangPack();
+	_updated.fire({});
+}
+
 void Instance::reset(const Language &data) {
 	const auto computedPluralId = !data.pluralId.isEmpty()
 		? data.pluralId

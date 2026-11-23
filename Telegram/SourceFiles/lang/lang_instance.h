@@ -53,6 +53,9 @@ public:
 
 	void switchToId(const Language &language);
 	void switchToCustomFile(const QString &filePath);
+	// TGeshka: a cloud language filled from strings built into the app,
+	// the cloud pack replaces them on the first connection (version 0).
+	void switchToBuiltIn(const Language &language, const QByteArray &content);
 
 	Instance(const Instance &other) = delete;
 	Instance &operator=(const Instance &other) = delete;
