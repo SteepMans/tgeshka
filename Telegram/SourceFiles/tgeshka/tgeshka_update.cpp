@@ -451,6 +451,11 @@ void ApplyManifest(const QByteArray &json) {
 	UpdateStatus([&](Status &status) {
 		status.required = required;
 	});
+	LOG(("TGeshka Update: manifest %1 (min %2), running %3%4."
+		).arg(offer->version
+		).arg(offer->minVersion.isEmpty() ? u"-"_q : offer->minVersion
+		).arg(current
+		).arg(skipped ? u", skipped"_q : QString()));
 	if (!newer || skipped) {
 		UpdateStatus([&](Status &status) {
 			status.state = State::Latest;
@@ -506,6 +511,8 @@ void Check() {
 		const auto body = reply->read(kMaxManifestSize);
 		if (code == 204) {
 			// No release for this channel yet.
+			LOG(("TGeshka Update: no release for %1."
+				).arg(ChannelName(Data().channel.current())));
 			UpdateStatus([](Status &status) {
 				status.state = State::Latest;
 				status.version = QString();
