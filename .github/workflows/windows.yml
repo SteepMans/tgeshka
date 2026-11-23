@@ -170,6 +170,7 @@ jobs:
           "DEPS_KEY=$env:DEPS_CACHE_VERSION-$hash" >> $env:GITHUB_ENV
 
       - name: Restore ThirdParty
+        id: restore_tp
         uses: actions/cache/restore@v6
         with:
           path: ${{ env.TBUILD }}\ThirdParty
@@ -177,11 +178,39 @@ jobs:
           restore-keys: win64-third-party-${{ env.DEPS_CACHE_VERSION }}-
 
       - name: Restore Libraries
+        id: restore_libs
         uses: actions/cache/restore@v6
         with:
           path: ${{ env.TBUILD }}\Libraries
           key: win64-libs-${{ env.DEPS_KEY }}
           restore-keys: win64-libs-${{ env.DEPS_CACHE_VERSION }}-
+
+      - name: Restore dependencies from release
+        id: deps_release
+        # actions/cache drops entries unused for 7 days and caches of other branches are not
+        # visible: the finished dependencies of main also live in the pre-release deps-<key>
+        # (no update-manifest.json, so the gateway never offers it as an update).
+        if: steps.restore_libs.outputs.cache-matched-key == ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="deps-$DEPS_KEY"
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' > "$RUNNER_TEMP/deps-assets.txt" 2> /dev/null \
+            || ! grep -qx 'deps.sha256' "$RUNNER_TEMP/deps-assets.txt"; then
+            echo "No complete $tag release: dependencies are built"
+            exit 0
+          fi
+          dl="$RUNNER_TEMP/deps-dl"
+          mkdir -p "$dl"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir "$dl" --pattern 'deps.*'
+          (cd "$dl" && sha256sum -c --quiet deps.sha256)
+          root="$(cygpath -u "$TBUILD")"
+          rm -rf "$root/Libraries" "$root/ThirdParty"
+          cat "$dl"/deps.tar.zst.* | zstd -d -q | tar -C "$root" -xf -
+          rm -rf "$dl"
+          echo "restored=true" >> "$GITHUB_OUTPUT"
+          echo "Dependencies restored from release $tag"
 
       - name: Repair pruned Rust sources
         run: |
@@ -234,14 +263,14 @@ jobs:
           du -sh "$LIBS" "$(cygpath -u "$TBUILD")/ThirdParty" || true
 
       - name: Save ThirdParty
-        if: always() && steps.deps_state.outputs.changed == 'True' && github.event_name != 'pull_request'
+        if: always() && (steps.deps_state.outputs.changed == 'True' || steps.deps_release.outputs.restored == 'true') && github.event_name != 'pull_request'
         uses: actions/cache/save@v6
         with:
           path: ${{ env.TBUILD }}\ThirdParty
           key: win64-third-party-${{ env.DEPS_KEY }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Save Libraries
-        if: always() && steps.deps_state.outputs.changed == 'True' && github.event_name != 'pull_request'
+        if: always() && (steps.deps_state.outputs.changed == 'True' || steps.deps_release.outputs.restored == 'true') && github.event_name != 'pull_request'
         uses: actions/cache/save@v6
         with:
           path: ${{ env.TBUILD }}\Libraries
@@ -301,6 +330,38 @@ jobs:
           name: ${{ env.ZIP_NAME }}
           path: ${{ env.ZIP }}
           retention-days: 14
+
+      - name: Publish dependencies release
+        # After a green main build: Libraries + ThirdParty as zstd parts (release assets are
+        # limited to 2 GiB each) in the pre-release deps-<key>; older deps-* releases are removed
+        # so they never push real releases out of the gateway's list of the newest 30.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="deps-$DEPS_KEY"
+          repo="$GITHUB_REPOSITORY"
+          if gh release view "$tag" --repo "$repo" --json assets --jq '.assets[].name' 2> /dev/null | grep -qx 'deps.sha256'; then
+            echo "$tag is already published"
+          else
+            gh release delete "$tag" --repo "$repo" --yes --cleanup-tag 2> /dev/null || true
+            out="$RUNNER_TEMP/deps-out"
+            mkdir -p "$out"
+            tar -C "$(cygpath -u "$TBUILD")" -cf - Libraries ThirdParty | zstd -T0 -10 -q | split -b 1800M -d -a 3 - "$out/deps.tar.zst."
+            (cd "$out" && sha256sum deps.tar.zst.* > deps.sha256)
+            ls -l "$out"
+            gh release create "$tag" --repo "$repo" --target "$GITHUB_SHA" --prerelease --latest=false --title "$tag" \
+              --notes "Prebuilt Windows dependencies (Libraries, ThirdParty) for CI, prepare.py key $DEPS_KEY. Not an application release."
+            gh release upload "$tag" "$out"/deps.tar.zst.* --repo "$repo"
+            # The checksum file goes last: it marks the release complete.
+            gh release upload "$tag" "$out/deps.sha256" --repo "$repo"
+            rm -rf "$out"
+          fi
+          gh release list --repo "$repo" --limit 100 --json tagName --jq '.[].tagName' | grep '^deps-' | grep -vx "$tag" | while read -r old; do
+            echo "Removing $old"
+            gh release delete "$old" --repo "$repo" --yes --cleanup-tag
+          done
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v') && env.OFFICIAL == '1'

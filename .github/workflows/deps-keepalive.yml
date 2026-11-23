@@ -1,0 +1,95 @@
+name: Dependencies cache keepalive
+
+# actions/cache drops an entry nobody has used for 7 days. A weekly restore keeps the
+# dependencies of main warm between releases; when the entry is already gone, it is
+# seeded again from the deps-<key> pre-release that windows.yml publishes.
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  keepalive:
+    name: Touch dependencies cache
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      # Must match windows.yml.
+      DEPS_CACHE_VERSION: v1
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Prepare directories
+        run: |
+          # Same paths as windows.yml: the path is part of the cache version.
+          $tbuild = if (Test-Path 'D:\') { 'D:\TBuild' } else { "$env:USERPROFILE\TBuild" }
+          New-Item -ItemType Directory -Force "$tbuild\Libraries", "$tbuild\ThirdParty" | Out-Null
+          "TBUILD=$tbuild" >> $env:GITHUB_ENV
+
+      - name: Checkout prepare.py
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: Telegram/build/prepare
+          path: src
+
+      - name: Cache key
+        run: |
+          $hash = (Get-FileHash "$env:GITHUB_WORKSPACE\src\Telegram\build\prepare\prepare.py" -Algorithm SHA256).Hash.Substring(0, 16)
+          "DEPS_KEY=$env:DEPS_CACHE_VERSION-$hash" >> $env:GITHUB_ENV
+
+      - name: Restore ThirdParty
+        id: restore_tp
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.TBUILD }}\ThirdParty
+          key: win64-third-party-${{ env.DEPS_KEY }}
+          restore-keys: win64-third-party-${{ env.DEPS_KEY }}-
+
+      - name: Restore Libraries
+        id: restore_libs
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.TBUILD }}\Libraries
+          key: win64-libs-${{ env.DEPS_KEY }}
+          restore-keys: win64-libs-${{ env.DEPS_KEY }}-
+
+      - name: Seed from release
+        id: seed
+        if: steps.restore_libs.outputs.cache-matched-key == '' || steps.restore_tp.outputs.cache-matched-key == ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="deps-$DEPS_KEY"
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' 2> /dev/null | grep -qx 'deps.sha256'; then
+            echo "::warning::no cache and no complete $tag release: the next main build compiles the dependencies"
+            exit 0
+          fi
+          dl="$RUNNER_TEMP/deps-dl"
+          mkdir -p "$dl"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir "$dl" --pattern 'deps.*'
+          (cd "$dl" && sha256sum -c --quiet deps.sha256)
+          root="$(cygpath -u "$TBUILD")"
+          rm -rf "$root/Libraries" "$root/ThirdParty"
+          cat "$dl"/deps.tar.zst.* | zstd -d -q | tar -C "$root" -xf -
+          echo "seeded=true" >> "$GITHUB_OUTPUT"
+
+      - name: Save ThirdParty
+        if: steps.seed.outputs.seeded == 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ env.TBUILD }}\ThirdParty
+          key: win64-third-party-${{ env.DEPS_KEY }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Save Libraries
+        if: steps.seed.outputs.seeded == 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ env.TBUILD }}\Libraries
+          key: win64-libs-${{ env.DEPS_KEY }}-${{ github.run_id }}-${{ github.run_attempt }}
