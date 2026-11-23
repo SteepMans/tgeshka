@@ -4,6 +4,7 @@ based on Telegram Desktop (GPLv3).
 */
 #include "tgeshka/tgeshka_update.h"
 
+#include "tgeshka/tgeshka_brand.h"
 #include "tgeshka/tgeshka_gateway.h"
 #include "tgeshka/tgeshka_update_verify.h"
 #include "base/timer.h"
@@ -31,10 +32,6 @@ based on Telegram Desktop (GPLv3).
 #ifdef Q_OS_WIN
 #include <windows.h>
 #endif // Q_OS_WIN
-
-#ifndef TGESHKA_VERSION
-#define TGESHKA_VERSION "0.0.0"
-#endif // TGESHKA_VERSION
 
 namespace Tgeshka::Update {
 namespace {

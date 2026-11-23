@@ -13,6 +13,10 @@ PRIVATE
     ${src_loc}/tgeshka/tgeshka_gateway.h
     ${src_loc}/tgeshka/tgeshka_integration.cpp
     ${src_loc}/tgeshka/tgeshka_integration.h
+    ${src_loc}/tgeshka/tgeshka_lang.cpp
+    ${src_loc}/tgeshka/tgeshka_lang.h
+    ${src_loc}/tgeshka/tgeshka_settings.cpp
+    ${src_loc}/tgeshka/tgeshka_settings.h
     ${src_loc}/tgeshka/tgeshka_transport_bridge.cpp
     ${src_loc}/tgeshka/tgeshka_transport_bridge.h
     ${src_loc}/tgeshka/tgeshka_update.cpp
@@ -21,6 +25,13 @@ PRIVATE
     ${src_loc}/tgeshka/tgeshka_update_ui.h
     ${src_loc}/tgeshka/tgeshka_update_verify.cpp
     ${src_loc}/tgeshka/tgeshka_update_verify.h
+)
+
+# Russian strings for the first launch, before the cloud language pack
+# can be loaded through the gateway.
+nice_target_sources(Telegram ${res_loc}
+PRIVATE
+    qrc/tgeshka/tgeshka.qrc
 )
 
 file(STRINGS ${src_loc}/tgeshka/tgeshka_brand.h tgeshka_app_file_line
@@ -51,16 +62,16 @@ if (TGESHKA_GATEWAY_URL)
         "TGESHKA_DEFAULT_GATEWAY_URL=\"${TGESHKA_GATEWAY_URL}\"")
 endif()
 
-# TGeshka version, set from the release tag (build.ps1 -Version, CI), see
-# docs/updates.md. Only the update module sees it: a new version does not
-# rebuild the whole application.
-set(TGESHKA_VERSION "0.0.0-dev" CACHE STRING "TGeshka version, 1.2.3 or 1.2.3-beta.1")
-if (NOT TGESHKA_VERSION MATCHES "^[0-9]+([.][0-9]+)([.][0-9]+)?([.][0-9]+)?(-[0-9A-Za-z.]+)?$")
-    message(FATAL_ERROR "Bad TGESHKA_VERSION: ${TGESHKA_VERSION}")
+# TGeshka version of a release build, from its tag (build.ps1 -Version, CI),
+# see docs/updates.md. Empty: the default from tgeshka_brand.h.
+set(TGESHKA_VERSION "" CACHE STRING "TGeshka version, 1.2.3 or 1.2.3-beta.1")
+if (TGESHKA_VERSION)
+    if (NOT TGESHKA_VERSION MATCHES "^[0-9]+([.][0-9]+)([.][0-9]+)?([.][0-9]+)?(-[0-9A-Za-z.]+)?$")
+        message(FATAL_ERROR "Bad TGESHKA_VERSION: ${TGESHKA_VERSION}")
+    endif()
+    target_compile_definitions(Telegram PRIVATE
+        "TGESHKA_VERSION=\"${TGESHKA_VERSION}\"")
 endif()
-set_property(SOURCE ${src_loc}/tgeshka/tgeshka_update.cpp
-    APPEND PROPERTY COMPILE_DEFINITIONS
-    "TGESHKA_VERSION=\"${TGESHKA_VERSION}\"")
 
 # Own updates use the stock Updater.exe only to install a package checked
 # by tgeshka_update.cpp. Upstream builds it only with its auto-update,

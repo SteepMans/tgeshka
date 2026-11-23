@@ -1,0 +1,5 @@
+<RCC>
+  <qresource prefix="/tgeshka">
+    <file alias="langs/ru.strings">../../langs/tgeshka/ru.strings</file>
+  </qresource>
+</RCC>

@@ -4,9 +4,9 @@ based on Telegram Desktop (GPLv3).
 */
 #include "tgeshka/tgeshka_update_ui.h"
 
+#include "tgeshka/tgeshka_lang.h"
 #include "tgeshka/tgeshka_update.h"
 #include "core/application.h"
-#include "lang/lang_instance.h"
 #include "settings/settings_builder.h"
 #include "settings/settings_common.h"
 #include "ui/boxes/confirm_box.h"
@@ -33,25 +33,6 @@ struct UiState {
 	QPointer<Ui::GenericBox> requiredBox;
 	rpl::lifetime lifetime;
 };
-
-// The strings are not in the Telegram language packs.
-[[nodiscard]] bool IsRussian() {
-	const auto &instance = Lang::GetInstance();
-	return instance.id().startsWith(u"ru"_q, Qt::CaseInsensitive)
-		|| instance.baseId().startsWith(u"ru"_q, Qt::CaseInsensitive);
-}
-
-[[nodiscard]] QString Tr(const QString &en, const QString &ru) {
-	return IsRussian() ? ru : en;
-}
-
-[[nodiscard]] rpl::producer<QString> TrValue(QString en, QString ru) {
-	return rpl::single(rpl::empty) | rpl::then(
-		Lang::GetInstance().updated()
-	) | rpl::map([=] {
-		return Tr(en, ru);
-	});
-}
 
 [[nodiscard]] UiState &Data() {
 	static auto result = UiState();
@@ -187,15 +168,9 @@ void ReadyButtonClicked() {
 void AddSettings(SectionBuilder &builder) {
 	const auto controller = builder.controller();
 
+	builder.addDivider();
 	builder.addSkip();
 	builder.addSubsectionTitle(TrValue(u"Updates"_q, u"Обновления"_q));
-	builder.addButton({
-		.id = u"tgeshka/version"_q,
-		.title = TrValue(u"Version"_q, u"Версия"_q),
-		.st = &st::settingsButtonNoIcon,
-		.label = rpl::single(CurrentVersion()),
-		.keywords = { u"version"_q, u"версия"_q },
-	});
 	const auto beta = builder.addButton({
 		.id = u"tgeshka/beta"_q,
 		.title = TrValue(u"Install beta versions"_q, u"Бета-версии"_q),
@@ -252,6 +227,7 @@ void AddSettings(SectionBuilder &builder) {
 			.keywords = { u"rollback"_q, u"откат"_q },
 		});
 	}
+	builder.addSkip();
 }
 
 } // namespace Tgeshka::Update

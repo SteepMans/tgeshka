@@ -20,8 +20,8 @@
   asks for the gateway address or a tgeshka://gateway link on the first launch.
 
   -Version (or the -Release tag without "v") is the TGeshka version, 1.2.3 or 1.2.3-beta.1: it goes
-  to CMake as TGESHKA_VERSION, into the zip as tgeshka-version.txt and into the zip name, the zip
-  is then the update package (docs/updates.md). Without it the version is 0.0.0-dev.
+  to CMake as TGESHKA_VERSION (over the default in tgeshka_brand.h), into the zip as
+  tgeshka-version.txt and into the zip name; the zip is then the update package (docs/updates.md).
 
   Autoupdate and crash reports are always disabled (DESKTOP_APP_DISABLE_AUTOUPDATE / _CRASH_REPORTS):
   the fork must not talk to Telegram Desktop update/crash servers directly.
@@ -203,9 +203,8 @@ try {
     Write-Host ('Default gateway address: ' + $(if ($GatewayUrl) { 'set' } else { 'none, asked on the first launch' }))
     $apiContent += "set(TGESHKA_GATEWAY_URL `"$GatewayUrl`" CACHE STRING `"`" FORCE)`n"
     if (-not $Version -and $Release -match '^v(.+)$') { $Version = $Matches[1] }
-    if (-not $Version) { $Version = '0.0.0-dev' }
-    if ($Version -notmatch '^\d{1,6}(\.\d{1,6}){1,3}(-[0-9A-Za-z.]{1,16})?$') { Fail "bad -Version $Version" }
-    Write-Host "TGeshka version: $Version"
+    if ($Version -and $Version -notmatch '^\d{1,6}(\.\d{1,6}){1,3}(-[0-9A-Za-z.]{1,16})?$') { Fail "bad -Version $Version" }
+    Write-Host ('TGeshka version: ' + $(if ($Version) { $Version } else { 'default from tgeshka_brand.h' }))
     $apiContent += "set(TGESHKA_VERSION `"$Version`" CACHE STRING `"`" FORCE)`n"
     # The fork must not reach Telegram Desktop update and crash-report servers directly.
     $apiContent += "set(DESKTOP_APP_DISABLE_AUTOUPDATE ON CACHE BOOL `"`" FORCE)`n" +
@@ -266,12 +265,13 @@ try {
     Step ("Build done in {0:hh\:mm\:ss}" -f ((Get-Date) - $t))
 
     # Executable / package names come from the brand header when the branch has one.
-    $appFile = 'Telegram'; $appName = 'Telegram'
+    $appFile = 'Telegram'; $appName = 'Telegram'; $appVersion = $null
     $brand = Join-Path $Repo 'Telegram\SourceFiles\tgeshka\tgeshka_brand.h'
     if (Test-Path $brand) {
         $text = [IO.File]::ReadAllText($brand)
         if ($text -match '#define\s+TGESHKA_APP_FILE\s+"([^"]+)"') { $appFile = $Matches[1] }
         if ($text -match '#define\s+TGESHKA_APP_NAME\s+"([^"]+)"') { $appName = $Matches[1] }
+        if ($text -match '#define\s+TGESHKA_VERSION\s+"([^"]+)"') { $appVersion = $Matches[1] }
     }
     $exe = Join-Path $Out "Release\$appFile.exe"
     if (-not (Test-Path $exe)) { Fail "$exe not found after build" }
@@ -279,9 +279,9 @@ try {
     # --- package ----------------------------------------------------------------
     $zip = $null
     if (-not $NoZip) {
-        $version = (Select-String -Path (Join-Path $Repo 'Telegram\build\version') -Pattern '^AppVersionStr\s+(\S+)').Matches[0].Groups[1].Value
+        $version = if ($Version) { $Version } elseif ($appVersion) { $appVersion } else { (Select-String -Path (Join-Path $Repo 'Telegram\build\version') -Pattern '^AppVersionStr\s+(\S+)').Matches[0].Groups[1].Value }
         $sha = (git -C $Repo rev-parse --short HEAD).Trim()
-        $name = if ($Version -ne '0.0.0-dev') { "$appName-$Version-win64" } else { "$appName-$version-$sha-win64-portable" }
+        $name = if ($Version) { "$appName-$Version-win64" } else { "$appName-$version-$sha-win64-portable" }
         $stage = Join-Path $Out "package\$name"
         $appDir = Join-Path $stage $appName
         if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
@@ -292,7 +292,7 @@ try {
         $modules = Join-Path $Out 'Release\modules'
         if (Test-Path $modules) { Copy-Item -Recurse $modules $appDir }
         # The update module checks it against the manifest version.
-        [IO.File]::WriteAllText((Join-Path $appDir 'tgeshka-version.txt'), $Version)
+        [IO.File]::WriteAllText((Join-Path $appDir 'tgeshka-version.txt'), $version)
         $zip = Join-Path $Out "$name.zip"
         if (Test-Path $zip) { Remove-Item -Force $zip }
         Compress-Archive -Path $appDir -DestinationPath $zip -CompressionLevel Optimal

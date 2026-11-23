@@ -5,6 +5,8 @@ based on Telegram Desktop (GPLv3).
 #include "tgeshka/tgeshka_gateway.h"
 
 #include "tgeshka/tgeshka_brand.h"
+#include "tgeshka/tgeshka_lang.h"
+#include "mtproto/mtproto_gateway.h"
 #include "tgeshka/tgeshka_transport_bridge.h"
 #include "base/random.h"
 #include "storage/details/storage_file_utilities.h"
@@ -34,6 +36,7 @@ struct State {
 	std::optional<GatewayConfig> config;
 	rpl::event_stream<GatewayConfig> changes;
 	rpl::variable<GatewayStatus> status = GatewayStatus::Unknown;
+	rpl::variable<GatewayLastError> lastError;
 	std::unique_ptr<QNetworkAccessManager> network;
 };
 
@@ -174,6 +177,68 @@ rpl::producer<GatewayStatus> GatewayStatusValue() {
 	return Data().status.value();
 }
 
+void SetGatewayLastError(int code, const QString &reason) {
+	Data().lastError = GatewayLastError{
+		.code = code,
+		.reason = reason,
+		.when = QDateTime::currentDateTime(),
+	};
+}
+
+rpl::producer<GatewayLastError> GatewayLastErrorValue() {
+	return Data().lastError.value();
+}
+
+QString GatewayErrorText(int code, const QString &reason) {
+	switch (code) {
+	case MTP::kGatewayNoToken:
+		return Tr(
+			u"No gateway address or access key"_q,
+			u"Не задан адрес шлюза или ключ доступа"_q);
+	case MTP::kGatewayRejected:
+		return Tr(
+			u"The gateway refused the connection (%1): check the key"_q,
+			u"Шлюз отказал в соединении (%1): проверьте ключ"_q
+		).arg(reason);
+	case MTP::kGatewayTlsError:
+		return Tr(
+			u"The gateway TLS certificate is not trusted"_q,
+			u"Сертификат TLS шлюза не прошёл проверку"_q);
+	case 1011:
+		return Tr(
+			u"Internal gateway error, reconnecting"_q,
+			u"Внутренняя ошибка шлюза, переподключение"_q);
+	case 4400:
+		return Tr(
+			u"The gateway could not read the connection start"_q,
+			u"Шлюз не разобрал начало соединения"_q);
+	case 4401:
+		return Tr(
+			u"The access key was revoked"_q,
+			u"Ключ доступа отозван"_q);
+	case 4408:
+		return Tr(
+			u"The connection was idle too long, reconnecting"_q,
+			u"Соединение простаивало слишком долго, переподключение"_q);
+	case 4429:
+		return Tr(
+			u"Too many connections for this key"_q,
+			u"Превышен лимит соединений ключа"_q);
+	case 4502:
+		return Tr(
+			u"The gateway cannot reach Telegram now"_q,
+			u"Шлюз сейчас не может связаться с Telegram"_q);
+	case 4504:
+		return Tr(
+			u"A Telegram server did not answer the gateway"_q,
+			u"Сервер Telegram не ответил шлюзу"_q);
+	}
+	return Tr(
+		u"Connection to the gateway was lost (%1)"_q,
+		u"Соединение со шлюзом прервано (%1)"_q
+	).arg(code ? QString::number(code) : reason);
+}
+
 bool IsValidToken(const QString &token) {
 	static const auto re = QRegularExpression(
 		u"^tc_[0-9A-Za-z]{43}$"_q);
@@ -236,10 +301,12 @@ void CheckAccessKey(
 	auto request = QNetworkRequest(InfoUrl(url));
 	request.setRawHeader("Authorization", "Bearer " + token.toUtf8());
 	request.setTransferTimeout(kCheckTimeout);
+	const auto started = crl::now();
 	const auto reply = data.network->get(request);
 	QObject::connect(reply, &QNetworkReply::finished, [=] {
 		reply->deleteLater();
 		auto result = KeyCheckResult();
+		result.latency = crl::now() - started;
 		const auto code = reply->attribute(
 			QNetworkRequest::HttpStatusCodeAttribute).toInt();
 		if (code == 200) {
@@ -250,6 +317,9 @@ void CheckAccessKey(
 				u"active_connections"_q).toInt();
 			result.maxConnections = object.value(
 				u"max_connections"_q).toInt();
+			result.description = object.value(
+				u"description"_q).toString();
+			result.status = object.value(u"status"_q).toString();
 		} else if (code == 404) {
 			result.type = KeyCheckResult::Type::Rejected;
 		} else {

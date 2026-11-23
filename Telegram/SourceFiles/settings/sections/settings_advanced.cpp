@@ -8,6 +8,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/sections/settings_advanced.h"
 #include "tgeshka/tgeshka_boxes.h"
 #include "tgeshka/tgeshka_integration.h"
+#include "tgeshka/tgeshka_lang.h"
+#include "tgeshka/tgeshka_settings.h"
 
 #include "settings/settings_common_session.h"
 
@@ -139,8 +141,6 @@ void BuildDataStorageSection(SectionBuilder &builder) {
 		.keywords = { u"connection"_q, u"proxy"_q, u"network"_q, u"vpn"_q },
 		.shown = Tgeshka::ProxySettingsShown(),
 	});
-
-	Tgeshka::AddGatewaySettingsButton(builder);
 
 	const auto showDownloadPath = container
 		? container->lifetime().make_state<rpl::variable<bool>>(
@@ -1416,13 +1416,14 @@ void SetupConnectionType(
 	// Before login (intro settings) the gateway replaces the proxy list.
 	AddButtonWithLabel(
 		container,
-		rpl::single(u"Подключение через шлюз"_q),
+		Tgeshka::TrValue(u"Gateway connection"_q, u"Подключение через шлюз"_q),
 		Tgeshka::GatewayStatusText(),
 		st::settingsButton,
 		{ &st::menuIconLock }
 	)->addClickHandler([=] {
 		controller->show(Box(Tgeshka::GatewaySettingsBox));
 	});
+	Tgeshka::FillGatewayState(container);
 }
 
 bool HasUpdate() {

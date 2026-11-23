@@ -61,6 +61,18 @@ bool SetGateway(const GatewaySettings &settings);
 // Main thread. Fired when a WebSocket to the gateway is open.
 [[nodiscard]] rpl::producer<> GatewayOpened();
 
+// Bytes through all gateway sockets since the start, any thread.
+struct GatewayTraffic {
+	int64 sent = 0;
+	int64 received = 0;
+};
+[[nodiscard]] GatewayTraffic GatewayTrafficTotal();
+void CountGatewayTraffic(int64 sent, int64 received);
+
+// Sent as X-TGeshka-Client: <platform>/<version> in the upgrade request.
+void SetGatewayClientId(const QString &id);
+[[nodiscard]] QString GatewayClientId();
+
 // Any thread.
 void NotifyGatewayError(int code, const QString &reason);
 void NotifyGatewayOpened();
