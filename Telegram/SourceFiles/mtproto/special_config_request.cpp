@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "mtproto/details/mtproto_rsa_public_key.h"
 #include "mtproto/mtproto_dc_options.h"
 #include "mtproto/mtproto_auth_key.h"
+#include "mtproto/mtproto_gateway.h"
 #include "base/unixtime.h"
 #include "base/openssl_help.h"
 #include "base/call_delayed.h"
@@ -279,6 +280,10 @@ void SpecialConfigRequest::sendNextRequest() {
 }
 
 void SpecialConfigRequest::performRequest(const Attempt &attempt) {
+	if (GatewayEnabled()) {
+		// No DNS-over-HTTPS / Firebase requests outside the gateway.
+		return;
+	}
 	const auto type = attempt.type;
 	auto url = QUrl();
 	url.setScheme(u"https"_q);

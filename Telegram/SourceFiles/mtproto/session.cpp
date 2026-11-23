@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "mtproto/details/mtproto_dcenter.h"
 #include "mtproto/session_private.h"
 #include "mtproto/mtproto_auth_key.h"
+#include "mtproto/mtproto_gateway.h"
 #include "core/application.h"
 #include "core/core_settings.h"
 #include "base/unixtime.h"
@@ -238,6 +239,20 @@ void Session::restart() {
 }
 
 void Session::refreshOptions() {
+	if (GatewayEnabled()) {
+		// All DC connections go through the gateway: TCP over IPv4 only,
+		// user proxy settings are not used.
+		_data->setOptions(SessionOptions(
+			_instance->systemLangCode(),
+			_instance->cloudLangCode(),
+			_instance->langPackName(),
+			GatewayProxyData(),
+			true, // useIPv4
+			false, // useIPv6
+			false, // useHttp
+			true)); // useTcp
+		return;
+	}
 	const auto &settings = Core::App().settings().proxy();
 	const auto &proxy = settings.selected();
 	const auto isEnabled = settings.isEnabled();

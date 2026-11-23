@@ -14,6 +14,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/labels.h"
 #include "main/main_account.h"
 #include "main/main_app_config.h"
+#include "tgeshka/tgeshka_brand.h"
 
 namespace Intro {
 namespace details {
@@ -25,7 +26,8 @@ StartWidget::StartWidget(
 : Step(parent, account, data, true) {
 	setMouseTracking(true);
 	setTitleText(rpl::single(u"Telegram Desktop"_q));
-	setDescriptionText(tr::lng_intro_about());
+	setDescriptionText(rpl::single(QString::fromLatin1(TGESHKA_APP_NAME)
+		+ u" — неофициальный клиент Telegram"_q));
 	show();
 }
 

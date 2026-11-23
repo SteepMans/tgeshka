@@ -590,6 +590,8 @@ PRIVATE
     core/click_handler_types.h
     core/core_cloud_password.cpp
     core/core_cloud_password.h
+    core/core_gateway.cpp
+    core/core_gateway.h
     core/core_screenshot_protection.cpp
     core/core_screenshot_protection.h
     core/core_settings.cpp
@@ -3128,3 +3130,5 @@ if (LINUX AND DESKTOP_APP_USE_PACKAGED)
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/org.telegram.desktop.service" DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/dbus-1/services")
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/org.telegram.desktop.metainfo.xml" DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/metainfo")
 endif()
+
+include(cmake/tgeshka.cmake)

@@ -6,6 +6,7 @@ For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "window/window_saved_windows.h"
+#include "tgeshka/tgeshka_brand.h"
 
 #include "apiwrap.h"
 #include "base/call_delayed.h"
@@ -1086,7 +1087,7 @@ QString SavedWindows::shellTitle(
 		? st::wrap_rtl(session->user()->name())
 		: QString();
 	return name.isEmpty()
-		? (user.isEmpty() ? u"Telegram"_q : user)
+		? (user.isEmpty() ? QString::fromLatin1(TGESHKA_APP_NAME) : user)
 		: user.isEmpty()
 		? name
 		: (name + u" @ "_q + user);

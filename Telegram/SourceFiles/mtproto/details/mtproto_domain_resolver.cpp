@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "mtproto/details/mtproto_domain_resolver.h"
 
+#include "mtproto/mtproto_gateway.h"
 #include "base/random.h"
 #include "base/invoke_queued.h"
 #include "base/call_delayed.h"
@@ -274,6 +275,10 @@ void DomainResolver::sendNextRequest(const AttemptKey &key) {
 void DomainResolver::performRequest(
 		const AttemptKey &key,
 		const Attempt &attempt) {
+	if (GatewayEnabled()) {
+		// No DNS-over-HTTPS requests outside the gateway.
+		return;
+	}
 	auto url = QUrl();
 	url.setScheme("https");
 	auto request = QNetworkRequest();

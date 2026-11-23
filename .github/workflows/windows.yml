@@ -1,0 +1,179 @@
+name: Windows build
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows x64 Release
+    runs-on: windows-latest
+    timeout-minutes: 360
+    permissions:
+      contents: write
+
+    env:
+      # Bump to drop the cached dependencies.
+      DEPS_CACHE_VERSION: v1
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Prepare directories
+        run: |
+          # Build tree on C: (more free space than D:).
+          New-Item -ItemType Directory -Force "$env:USERPROFILE\TBuild\Libraries", "$env:USERPROFILE\TBuild\ThirdParty" | Out-Null
+          "TBUILD=$env:USERPROFILE\TBuild" >> $env:GITHUB_ENV
+          Get-PSDrive C, D -ErrorAction SilentlyContinue | Format-Table Name, @{n='FreeGB';e={[int]($_.Free/1GB)}}
+
+      - name: Checkout sources
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          path: src
+
+      - name: Copy sources to build root
+        run: |
+          robocopy "$env:GITHUB_WORKSPACE\src" "$env:TBUILD\tdesktop" /E /MT:16 /R:1 /W:1 /NFL /NDL /NJH /NP
+          if ($LASTEXITCODE -ge 8) { exit 1 }
+          exit 0
+
+      - name: Cache key
+        run: |
+          $hash = (Get-FileHash "$env:TBUILD\tdesktop\Telegram\build\prepare\prepare.py" -Algorithm SHA256).Hash.Substring(0, 16)
+          "DEPS_KEY=$env:DEPS_CACHE_VERSION-$hash" >> $env:GITHUB_ENV
+
+      - name: Restore ThirdParty
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.TBUILD }}\ThirdParty
+          key: win64-third-party-${{ env.DEPS_KEY }}
+          restore-keys: win64-third-party-${{ env.DEPS_CACHE_VERSION }}-
+
+      - name: Restore Libraries
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.TBUILD }}\Libraries
+          key: win64-libs-${{ env.DEPS_KEY }}
+          restore-keys: win64-libs-${{ env.DEPS_CACHE_VERSION }}-
+
+      - name: Dependencies state before
+        run: |
+          # prepare.py writes a cache key file per finished stage: the cache is saved again
+          # only when a stage was (re)built, a partial run keeps its finished stages.
+          $keys = "$env:TBUILD\Libraries\win64\cache_keys"
+          $state = if (Test-Path $keys) { (Get-ChildItem $keys -File | Sort-Object Name | ForEach-Object { $_.Name + ':' + (Get-FileHash $_.FullName).Hash }) -join ';' } else { '' }
+          "DEPS_BEFORE=$((Get-FileHash -InputStream ([IO.MemoryStream]::new([Text.Encoding]::UTF8.GetBytes($state)))).Hash)" >> $env:GITHUB_ENV
+          Write-Host "Finished stages restored: $(if (Test-Path $keys) { (Get-ChildItem $keys -File).Count } else { 0 })"
+
+      - name: Dependencies
+        id: deps
+        # Leaves time to save the finished stages when the first run cannot finish all of them.
+        timeout-minutes: 290
+        run: |
+          & "$env:TBUILD\tdesktop\build.ps1" -PrepareOnly -Jobs ([Environment]::ProcessorCount)
+
+      - name: Dependencies state after
+        id: deps_state
+        if: always() && steps.deps.outcome != 'skipped'
+        run: |
+          $keys = "$env:TBUILD\Libraries\win64\cache_keys"
+          $state = if (Test-Path $keys) { (Get-ChildItem $keys -File | Sort-Object Name | ForEach-Object { $_.Name + ':' + (Get-FileHash $_.FullName).Hash }) -join ';' } else { '' }
+          $after = (Get-FileHash -InputStream ([IO.MemoryStream]::new([Text.Encoding]::UTF8.GetBytes($state)))).Hash
+          "changed=$($after -ne $env:DEPS_BEFORE)" >> $env:GITHUB_OUTPUT
+          Write-Host "Finished stages: $(if (Test-Path $keys) { (Get-ChildItem $keys -File).Count } else { 0 }), changed: $($after -ne $env:DEPS_BEFORE)"
+
+      - name: Shrink dependencies
+        if: always() && steps.deps_state.outputs.changed == 'True'
+        shell: bash
+        run: |
+          # Same rule as upstream win.yml: keep only what the application build uses.
+          LIBS="$(cygpath -u "$TBUILD")/Libraries/win64"
+          [ -d "$LIBS" ] || exit 0
+          find "$LIBS" '(' '(' ! '(' -name '*.lib' -o -name '*.a' -o -name '*.exe' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -name '*.pc' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' -o -path '*/nv-codec-headers/*' ')' -type f ')' -o -empty ')' -delete
+          du -sh "$LIBS" "$(cygpath -u "$TBUILD")/ThirdParty" || true
+
+      - name: Save ThirdParty
+        if: always() && steps.deps_state.outputs.changed == 'True' && github.event_name != 'pull_request'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ env.TBUILD }}\ThirdParty
+          key: win64-third-party-${{ env.DEPS_KEY }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Save Libraries
+        if: always() && steps.deps_state.outputs.changed == 'True' && github.event_name != 'pull_request'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ env.TBUILD }}\Libraries
+          key: win64-libs-${{ env.DEPS_KEY }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Build options
+        env:
+          TG_API_ID: ${{ secrets.TG_API_ID }}
+          TG_API_HASH: ${{ secrets.TG_API_HASH }}
+          TGESHKA_GATEWAY_URL: ${{ secrets.TGESHKA_GATEWAY_URL }}
+        run: |
+          # Secrets are not passed to pull requests from forks: such builds use the upstream
+          # test api_id, no default gateway address and are never published.
+          $file = Join-Path $env:RUNNER_TEMP 'api.txt'
+          if ($env:TG_API_ID -and $env:TG_API_HASH) {
+            [IO.File]::WriteAllText($file, "api_id=$env:TG_API_ID`napi_hash=$env:TG_API_HASH`n")
+            "API_FILE=$file" >> $env:GITHUB_ENV
+            "OFFICIAL=1" >> $env:GITHUB_ENV
+            Write-Host 'API credentials: repository secrets'
+          } else {
+            "OFFICIAL=0" >> $env:GITHUB_ENV
+            Write-Host 'API credentials: upstream test values'
+          }
+          if ($env:TGESHKA_GATEWAY_URL) {
+            $gw = Join-Path $env:RUNNER_TEMP 'gateway.txt'
+            [IO.File]::WriteAllText($gw, $env:TGESHKA_GATEWAY_URL.Trim())
+            "GATEWAY_FILE=$gw" >> $env:GITHUB_ENV
+          } else {
+            "GATEWAY_FILE=$env:RUNNER_TEMP\no-gateway.txt" >> $env:GITHUB_ENV
+          }
+
+      - name: Build
+        run: |
+          $options = @{ Jobs = [Environment]::ProcessorCount; MinFreeGB = 10; GatewayFile = $env:GATEWAY_FILE }
+          if ($env:OFFICIAL -eq '1') { $options.ApiFile = $env:API_FILE } else { $options.TestApi = $true }
+          & "$env:TBUILD\tdesktop\build.ps1" @options
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $zip = Get-ChildItem "$env:TBUILD\tdesktop\out\*.zip" | Select-Object -First 1
+          "ZIP=$($zip.FullName)" >> $env:GITHUB_ENV
+          "ZIP_NAME=$($zip.BaseName)" >> $env:GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ZIP_NAME }}
+          path: ${{ env.ZIP }}
+          retention-days: 14
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v') && env.OFFICIAL == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A release may already exist (created by hand with notes): add the zip to it.
+          gh release view $env:GITHUB_REF_NAME --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:GITHUB_REF_NAME $env:ZIP --repo $env:GITHUB_REPOSITORY --clobber
+          } else {
+            gh release create $env:GITHUB_REF_NAME $env:ZIP --repo $env:GITHUB_REPOSITORY --title $env:GITHUB_REF_NAME --notes "Windows x64 portable build of $env:GITHUB_SHA"
+          }
+          exit $LASTEXITCODE

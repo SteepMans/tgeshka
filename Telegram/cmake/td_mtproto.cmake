@@ -23,6 +23,8 @@ PRIVATE
     mtproto/details/mtproto_dcenter.h
     mtproto/details/mtproto_domain_resolver.cpp
     mtproto/details/mtproto_domain_resolver.h
+    mtproto/details/mtproto_gateway_socket.cpp
+    mtproto/details/mtproto_gateway_socket.h
     mtproto/details/mtproto_dump_to_text.cpp
     mtproto/details/mtproto_dump_to_text.h
     mtproto/details/mtproto_received_ids_manager.cpp
@@ -45,6 +47,8 @@ PRIVATE
     mtproto/mtproto_dc_options.h
     mtproto/mtproto_dh_utils.cpp
     mtproto/mtproto_dh_utils.h
+    mtproto/mtproto_gateway.cpp
+    mtproto/mtproto_gateway.h
     mtproto/mtproto_pch.h
     mtproto/mtproto_proxy_data.cpp
     mtproto/mtproto_proxy_data.h

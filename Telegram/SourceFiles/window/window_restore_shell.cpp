@@ -6,6 +6,7 @@ For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "window/window_restore_shell.h"
+#include "tgeshka/tgeshka_brand.h"
 
 #include "base/event_filter.h"
 #include "lang/lang_keys.h"
@@ -28,7 +29,7 @@ RestoreShell::RestoreShell(
 	const QString &title,
 	Core::WindowPosition position)
 : _window(base::make_unique_q<Ui::RpWindow>()) {
-	_window->setTitle(title.isEmpty() ? u"Telegram"_q : title);
+	_window->setTitle(title.isEmpty() ? QString::fromLatin1(TGESHKA_APP_NAME) : title);
 	_window->setMinimumSize(
 		QSize(st::windowShellMinWidth, st::windowShellMinHeight));
 	setupBody();

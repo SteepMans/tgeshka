@@ -6,6 +6,7 @@ For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "platform/win/windows_app_user_model_id.h"
+#include "tgeshka/tgeshka_brand.h"
 
 #include "platform/win/windows_dlls.h"
 #include "platform/win/windows_toast_activator.h"
@@ -28,7 +29,7 @@ const PROPERTYKEY pkey_AppUserModel_ToastActivator = { { 0x9F4C2855, 0x9F79, 0x4
 #ifdef OS_WIN_STORE
 const WCHAR AppUserModelIdBase[] = L"Telegram.TelegramDesktop.Store";
 #else // OS_WIN_STORE
-const WCHAR AppUserModelIdBase[] = L"Telegram.TelegramDesktop";
+const WCHAR AppUserModelIdBase[] = L"" TGESHKA_APP_USER_MODEL_ID;
 #endif // OS_WIN_STORE
 
 [[nodiscard]] QString PinnedIconsPath() {

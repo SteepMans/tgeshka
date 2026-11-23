@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "mtproto/details/mtproto_abstract_socket.h"
 #include "mtproto/details/mtproto_web_proxy_socket.h"
+#include "mtproto/details/mtproto_gateway_socket.h"
 #include "base/bytes.h"
 #include "base/openssl_help.h"
 #include "base/random.h"
@@ -520,8 +521,11 @@ void TcpConnection::connectToServer(
 
 	const auto proxyProtocol = (_proxy.type == ProxyData::Type::Mtproto)
 		|| (_proxy.type == ProxyData::Type::Web);
+	const auto gateway = (_proxy.type == ProxyData::Type::Gateway);
 	const auto secret = proxyProtocol
 		? _proxy.secretFromMtprotoPassword()
+		: gateway
+		? bytes::vector() // Gateway expects plain obfuscated2 (Version0).
 		: protocolSecret;
 	if (proxyProtocol) {
 		_address = _proxy.host;
@@ -532,7 +536,9 @@ void TcpConnection::connectToServer(
 		_port = port;
 		_protocol = Protocol::Create(secret);
 	}
-	_socket = (_proxy.type == ProxyData::Type::Web)
+	_socket = gateway
+		? std::make_unique<GatewaySocket>(thread(), _proxy, protocolForFiles)
+		: (_proxy.type == ProxyData::Type::Web)
 		? std::make_unique<WebProxySocket>(thread(), _proxy)
 		: AbstractSocket::Create(
 			thread(),

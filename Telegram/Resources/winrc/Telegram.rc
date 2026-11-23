@@ -22,6 +22,8 @@
 /////////////////////////////////////////////////////////////////////////////
 #undef APSTUDIO_READONLY_SYMBOLS
 
+#include "../../SourceFiles/tgeshka/tgeshka_brand.h"
+
 /////////////////////////////////////////////////////////////////////////////
 // English (United States) resources
 
@@ -60,11 +62,11 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
-            VALUE "CompanyName", "Telegram FZ-LLC"
-            VALUE "FileDescription", "Telegram Desktop"
+            VALUE "CompanyName", TGESHKA_COMPANY
+            VALUE "FileDescription", TGESHKA_APP_NAME
             VALUE "FileVersion", "7.4.4.0"
             VALUE "LegalCopyright", "Copyright (C) 2014-2026"
-            VALUE "ProductName", "Telegram Desktop"
+            VALUE "ProductName", TGESHKA_APP_NAME
             VALUE "ProductVersion", "7.4.4.0"
         END
     END

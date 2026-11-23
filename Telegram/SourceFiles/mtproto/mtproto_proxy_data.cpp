@@ -493,6 +493,10 @@ ProxyData::Status ProxyData::status() const {
 		return (secret.size() >= 21 && secret[0] == bytes::type(0xEE))
 			? Status::Unsupported
 			: Status::Valid;
+	} else if (type == Type::Gateway) {
+		return (host.isEmpty() || !port || password.isEmpty())
+			? Status::Invalid
+			: Status::Valid;
 	} else if (type == Type::None || host.isEmpty() || !port) {
 		return Status::Invalid;
 	} else if (type == Type::Mtproto) {
@@ -572,7 +576,8 @@ QNetworkProxy ToNetworkProxy(const ProxyData &proxy) {
 	if (proxy.type == ProxyData::Type::None) {
 		return QNetworkProxy::DefaultProxy;
 	} else if (proxy.type == ProxyData::Type::Mtproto
-		|| proxy.type == ProxyData::Type::Web) {
+		|| proxy.type == ProxyData::Type::Web
+		|| proxy.type == ProxyData::Type::Gateway) {
 		return QNetworkProxy::NoProxy;
 	}
 	return QNetworkProxy(

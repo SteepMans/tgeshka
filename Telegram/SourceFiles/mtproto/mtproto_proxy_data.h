@@ -23,6 +23,7 @@ struct ProxyData {
 		Http,
 		Mtproto,
 		Web,
+		Gateway,
 	};
 	enum class Status {
 		Valid,

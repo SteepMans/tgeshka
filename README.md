@@ -1,3 +1,53 @@
+# TGeshka
+
+TGeshka is an unofficial Telegram client for Windows based on [Telegram Desktop](https://github.com/telegramdesktop/tdesktop)
+(GPLv3). It is not affiliated with Telegram FZ-LLC. Every MTProto connection goes as a WebSocket over TLS to a gateway
+that forwards the same encrypted stream to Telegram data centers (see [docs/gateway.md](docs/gateway.md)).
+The gateway itself is not part of this repository and no gateway address is built into the sources.
+
+TGeshka - неофициальный клиент Telegram для Windows на базе Telegram Desktop. Все соединения с Telegram идут через
+шлюз по WebSocket. Адрес шлюза и ключ доступа выдаёт владелец шлюза (ссылка `tgeshka://gateway?url=...&token=...`).
+
+Branch `main` = upstream release tag + TGeshka changes. Submodules point to the upstream repositories.
+
+## Сборка
+
+- **GitHub Actions** (`.github/workflows/windows.yml`): сборка Windows x64 Release на `windows-latest` для `main`,
+  pull request и вручную (Run workflow). Артефакт - portable zip. Тег `v*` собирает и публикует zip в GitHub Release.
+  Зависимости (Libraries, ThirdParty) кэшируются между запусками, ключ - хэш `Telegram/build/prepare/prepare.py`.
+  Секреты репозитория: `TG_API_ID`, `TG_API_HASH` (api_id/api_hash), `TGESHKA_GATEWAY_URL` (адрес шлюза по
+  умолчанию). Без секретов (pull request из форка) клиент собирается с тестовыми api_id upstream, без адреса шлюза,
+  и не публикуется.
+- **Локально** (Windows, Visual Studio 2022 с C++ x64 и тулсетом 14.44, Python, Git): репозиторий в
+  `<BuildPath>\tdesktop`, первый запуск `.\build.ps1 -Prepare` (зависимости в `<BuildPath>\Libraries`, около 1,5 ч
+  и 60+ ГБ на пике), дальше `.\build.ps1` - инкрементальная сборка Release x64 и zip в `out\`. api_id/api_hash
+  берутся из `%USERPROFILE%\.config\tg-fork\api.txt` (`api_id=...`, `api_hash=...`), адрес шлюза - из
+  `-GatewayUrl`, `TGESHKA_GATEWAY_URL` или `%USERPROFILE%\.config\tg-fork\gateway.txt`. В репозиторий и лог они
+  не попадают. Параметры - в шапке `build.ps1`.
+
+## Как обновиться с upstream
+
+1. Получить новый релизный тег upstream (теги upstream не тянутся автоматически):
+
+       git remote add upstream https://github.com/telegramdesktop/tdesktop.git
+       git fetch upstream refs/tags/vX.Y.Z:refs/tags/upstream-vX.Y.Z
+
+2. Создать ветку от свежего `main` и влить тег (не rebase, история `main` не переписывается):
+
+       git fetch origin main
+       git checkout -b feature/upstream-vX.Y.Z origin/main
+       git merge --no-ff upstream-vX.Y.Z
+
+3. Конфликты:
+   - `.github/workflows/*`: у нас только `windows.yml`, workflow upstream снова удалить;
+   - `README.md`: оставить этот раздел наверху;
+   - остальное - по коду TGeshka.
+4. Обновить сабмодули до версий тега: `git submodule update --init --recursive`.
+5. Если upstream поменял версии зависимостей (`Telegram/build/prepare/prepare.py`), CI соберёт их заново
+   (новый ключ кэша), локально - `build.ps1 -Prepare`.
+6. Открыть PR в `main`, после мержа и зелёной сборки поставить тег релиза `vX.Y.Z`. Теги upstream с префиксом
+   `v` в этот репозиторий не пушить: они запускают релиз.
+
 # [Telegram Desktop][telegram_desktop] – Official Messenger
 
 This is the complete source code and the build instructions for the official [Telegram][telegram] messenger desktop client, based on the [Telegram API][telegram_api] and the [MTProto][telegram_proto] secure protocol.

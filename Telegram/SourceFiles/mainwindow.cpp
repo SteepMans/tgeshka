@@ -6,6 +6,7 @@ For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "mainwindow.h"
+#include "tgeshka/tgeshka_integration.h"
 
 #include "data/data_document.h"
 #include "data/data_session.h"
@@ -314,6 +315,7 @@ void MainWindow::setupIntro(
 		}
 	}
 	fixOrder();
+	Tgeshka::OnIntroShown(&controller());
 }
 
 void MainWindow::setupMain(
