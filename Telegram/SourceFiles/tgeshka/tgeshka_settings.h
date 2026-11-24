@@ -20,7 +20,7 @@ namespace Tgeshka {
 void FillGatewayState(not_null<Ui::VerticalLayout*> container);
 
 // Settings > TGeshka: gateway connection and its live state, version,
-// "About TGeshka" and the source code link.
+// "What's new", "About TGeshka" and the source code link.
 [[nodiscard]] Settings::Type SettingsSectionId();
 
 // Main settings menu entry, called from settings_main.cpp.

@@ -27,10 +27,13 @@ PRIVATE
     ${src_loc}/tgeshka/tgeshka_update_ui.h
     ${src_loc}/tgeshka/tgeshka_update_verify.cpp
     ${src_loc}/tgeshka/tgeshka_update_verify.h
+    ${src_loc}/tgeshka/tgeshka_whats_new.cpp
+    ${src_loc}/tgeshka/tgeshka_whats_new.h
 )
 
 # Russian strings for the first launch, before the cloud language pack
-# can be loaded through the gateway.
+# can be loaded through the gateway, and the "What's new" list from
+# CHANGELOG-tgeshka.json in the repository root.
 nice_target_sources(Telegram ${res_loc}
 PRIVATE
     qrc/tgeshka/tgeshka.qrc

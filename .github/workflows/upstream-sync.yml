@@ -109,6 +109,10 @@ jobs:
           done
           # New upstream workflows would run here: only ours are kept.
           git diff --cached --name-only --diff-filter=A origin/main -- .github | xargs -r git rm -q -f --
+          # "What's new" in the app: the next beta tells about the upstream release.
+          next=$(sh tools/tgeshka/next_version.sh beta)
+          python3 tools/tgeshka/changelog_add.py "$next" "Обновлено до Telegram Desktop ${TAG#v}." \
+            && git add CHANGELOG-tgeshka.json
           result=clean
           if [ -n "$(git diff --name-only --diff-filter=U)" ]; then
             result=conflict
@@ -181,6 +185,9 @@ jobs:
     needs: [merge, build, release]
     if: always() && (needs.merge.outputs.result == 'clean' || needs.merge.outputs.result == 'conflict' || needs.merge.result == 'failure')
     runs-on: ubuntu-latest
+    permissions:
+      # Reads the log of the failed build job for the first compiler error.
+      actions: read
     env:
       TOKEN: ${{ secrets.TG_NOTIFY_TOKEN }}
       CHAT: ${{ secrets.TG_NOTIFY_CHAT }}
@@ -191,7 +198,25 @@ jobs:
       RELEASE: ${{ needs.release.result }}
       VERSION: ${{ needs.release.outputs.version }}
       RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      GH_TOKEN: ${{ github.token }}
     steps:
+      - name: First build error
+        if: needs.build.result == 'failure'
+        run: |
+          # The first compiler/linker/CMake error of the failed build job goes into the message.
+          job=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" \
+            --jq '[.jobs[] | select(.conclusion == "failure")][0].id // empty')
+          [ -n "$job" ] || exit 0
+          # curl: gh api refuses a log with terminal escape sequences.
+          curl -sSfL -H "Authorization: Bearer $GH_TOKEN" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/jobs/$job/logs" -o build.log || exit 0
+          first=$(sed -E 's/^[0-9TZ:.-]+ //' build.log \
+            | grep -m 1 -E '(fatal )?error [A-Z]+[0-9]+:|CMake Error|: error:|\[ERROR\]' \
+            | sed -E 's/ \[[^]]*\.vcxproj\]$//; s#^[A-Za-z]:[\\/][^ (]*[\\/]tdesktop[\\/]##' | tr -d '\r' | cut -c1-400)
+          [ -n "$first" ] || exit 0
+          # HTML-escaped for parse_mode=HTML.
+          first=$(printf '%s' "$first" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+          { echo 'FIRST_ERROR<<EOF_ERROR'; printf '%s\n' "$first"; echo 'EOF_ERROR'; } >> "$GITHUB_ENV"
+
       - name: Send
         run: |
           [ -n "$TOKEN" ] || { echo 'No TG_NOTIFY_TOKEN'; exit 0; }
@@ -208,6 +233,10 @@ jobs:
             text="<b>TGeshka: Telegram Desktop $TAG не влит</b>
           Сборка: $BUILD, выпуск: $RELEASE. PR остаётся открытым: $PR
           $RUN"
+            if [ -n "$FIRST_ERROR" ]; then
+              text="$text
+          Первая ошибка: <code>$FIRST_ERROR</code>"
+            fi
           fi
           curl -sS -m 20 "https://api.telegram.org/bot${TOKEN}/sendMessage" \
             --data-urlencode "chat_id=${CHAT}" --data-urlencode "parse_mode=HTML" \
