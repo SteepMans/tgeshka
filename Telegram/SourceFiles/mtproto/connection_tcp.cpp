@@ -508,8 +508,7 @@ void TcpConnection::connectToServer(
 		const QString &address,
 		int port,
 		const bytes::vector &protocolSecret,
-		int16 protocolDcId,
-		bool protocolForFiles) {
+		int16 protocolDcId) {
 	if (_status == Status::Finished) {
 		// Queued connectToServer() may arrive after disconnectFromServer().
 		return;
@@ -537,14 +536,13 @@ void TcpConnection::connectToServer(
 		_protocol = Protocol::Create(secret);
 	}
 	_socket = gateway
-		? std::make_unique<GatewaySocket>(thread(), _proxy, protocolForFiles)
+		? std::make_unique<GatewaySocket>(thread(), _proxy)
 		: (_proxy.type == ProxyData::Type::Web)
 		? std::make_unique<WebProxySocket>(thread(), _proxy)
 		: AbstractSocket::Create(
 			thread(),
 			secret,
-			ToNetworkProxy(_proxy),
-			protocolForFiles);
+			ToNetworkProxy(_proxy));
 	_protocolDcId = protocolDcId;
 
 	const auto postfix = _socket->debugPostfix();
