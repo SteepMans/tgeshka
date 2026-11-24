@@ -329,4 +329,57 @@ void CheckAccessKey(
 	});
 }
 
+bool GatewayApiRequest(
+		const QByteArray &method,
+		const QString &path,
+		const QByteArray &json,
+		const QByteArray &ifNoneMatch,
+		Fn<void(GatewayReply)> done) {
+	const auto &config = CurrentGatewayConfig();
+	if (config.needsToken() || !IsValidGatewayUrl(config.url)) {
+		return false;
+	}
+	auto &data = Data();
+	if (!data.network) {
+		data.network = std::make_unique<QNetworkAccessManager>();
+	}
+	auto url = QUrl(config.url);
+	url.setScheme(u"https"_q);
+	url.setPath(path);
+	url.setQuery(QString());
+	url.setFragment(QString());
+	auto request = QNetworkRequest(url);
+	request.setRawHeader("Authorization", "Bearer " + config.token.toUtf8());
+	const auto client = MTP::GatewayClientId();
+	if (!client.isEmpty()) {
+		request.setRawHeader("X-TGeshka-Client", client.toUtf8());
+	}
+	if (!ifNoneMatch.isEmpty()) {
+		request.setRawHeader("If-None-Match", ifNoneMatch);
+	}
+	request.setTransferTimeout(kCheckTimeout);
+	request.setAttribute(
+		QNetworkRequest::RedirectPolicyAttribute,
+		QNetworkRequest::ManualRedirectPolicy);
+	const auto reply = [&] {
+		if (method == "POST") {
+			request.setHeader(
+				QNetworkRequest::ContentTypeHeader,
+				u"application/json"_q);
+			return data.network->post(request, json);
+		}
+		return data.network->get(request);
+	}();
+	QObject::connect(reply, &QNetworkReply::finished, [=] {
+		reply->deleteLater();
+		auto result = GatewayReply();
+		result.code = reply->attribute(
+			QNetworkRequest::HttpStatusCodeAttribute).toInt();
+		result.body = reply->read(4 * 1024 * 1024);
+		result.etag = reply->rawHeader("ETag");
+		done(std::move(result));
+	});
+	return true;
+}
+
 } // namespace Tgeshka

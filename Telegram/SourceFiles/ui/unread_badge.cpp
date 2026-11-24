@@ -14,6 +14,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/stickers/data_custom_emoji.h"
 #include "main/main_session.h"
 #include "lang/lang_keys.h"
+#include "tgeshka/tgeshka_members.h"
 #include "ui/painter.h"
 #include "ui/rect.h"
 #include "ui/power_saving.h"
@@ -248,6 +249,39 @@ PeerBadge::PeerBadge() = default;
 PeerBadge::~PeerBadge() = default;
 
 int PeerBadge::drawGetWidth(Painter &p, Descriptor &&descriptor) {
+	// TGeshka: the badge of TGeshka users goes after the other badges.
+	const auto peer = descriptor.peer;
+	const auto tgeshkaIcon = descriptor.verified
+		? descriptor.verified
+		: descriptor.premium;
+	const auto tgeshka = tgeshkaIcon
+		&& !(descriptor.scam && (peer->isScam() || peer->isFake()))
+		&& !(descriptor.direct && peer->isMonoforum())
+		&& Tgeshka::Members::IsMember(peer);
+	if (!tgeshka) {
+		return drawStandardGetWidth(p, std::move(descriptor));
+	}
+	const auto size = tgeshkaIcon->size();
+	const auto rectForName = descriptor.rectForName;
+	const auto nameWidth = descriptor.nameWidth;
+	const auto outerWidth = descriptor.outerWidth;
+	descriptor.rectForName.setWidth(rectForName.width() - size.width());
+	const auto standard = drawStandardGetWidth(p, std::move(descriptor));
+	const auto left = rectForName.x()
+		+ std::min(
+			nameWidth + standard,
+			rectForName.width() - size.width());
+	Tgeshka::Members::PaintBadge(
+		p,
+		style::rtlrect(
+			QRect(QPoint(left, rectForName.y()), size),
+			outerWidth));
+	return standard + size.width();
+}
+
+int PeerBadge::drawStandardGetWidth(
+		Painter &p,
+		Descriptor &&descriptor) {
 	Expects(descriptor.customEmojiRepaint != nullptr);
 
 	const auto peer = descriptor.peer;

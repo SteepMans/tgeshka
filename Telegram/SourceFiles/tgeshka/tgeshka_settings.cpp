@@ -8,6 +8,7 @@ based on Telegram Desktop (GPLv3).
 #include "tgeshka/tgeshka_brand.h"
 #include "tgeshka/tgeshka_gateway.h"
 #include "tgeshka/tgeshka_lang.h"
+#include "tgeshka/tgeshka_members.h"
 #include "tgeshka/tgeshka_update_ui.h"
 #include "base/timer.h"
 #include "boxes/about_box.h"
@@ -265,6 +266,7 @@ const auto kMeta = BuildHelper({
 	.icon = &st::menuIconTgeshka,
 }, [](SectionBuilder &builder) {
 	BuildGatewaySection(builder);
+	Members::AddSettings(builder);
 	Update::AddSettings(builder);
 	BuildAboutSection(builder);
 });

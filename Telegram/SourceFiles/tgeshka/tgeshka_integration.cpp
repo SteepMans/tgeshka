@@ -8,6 +8,7 @@ based on Telegram Desktop (GPLv3).
 #include "tgeshka/tgeshka_brand.h"
 #include "tgeshka/tgeshka_gateway.h"
 #include "tgeshka/tgeshka_lang.h"
+#include "tgeshka/tgeshka_members.h"
 #include "tgeshka/tgeshka_transport_bridge.h"
 #include "tgeshka/tgeshka_update_ui.h"
 #include "base/platform/base_platform_url_scheme.h"
@@ -96,6 +97,7 @@ void OnLocalStorageReady() {
 
 	// After Application::run(): windows exist for the update screens.
 	crl::on_main([] {
+		Members::Start();
 		Update::StartUi();
 	});
 }
