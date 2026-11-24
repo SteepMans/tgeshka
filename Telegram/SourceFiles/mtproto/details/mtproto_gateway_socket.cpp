@@ -50,11 +50,9 @@ constexpr auto kCloseTooBig = 1009;
 
 GatewaySocket::GatewaySocket(
 	not_null<QThread*> thread,
-	const ProxyData &gateway,
-	bool protocolForFiles)
+	const ProxyData &gateway)
 : AbstractSocket(thread)
-, _gateway(gateway)
-, _protocolForFiles(protocolForFiles) {
+, _gateway(gateway) {
 	Expects(gateway.type == ProxyData::Type::Gateway);
 
 	_socket.moveToThread(thread);
@@ -196,14 +194,6 @@ QString GatewaySocket::debugPostfix() const {
 void GatewaySocket::socketEncrypted() {
 	if (_state != State::Connecting) {
 		return;
-	}
-	if (_protocolForFiles) {
-		_socket.setSocketOption(
-			QAbstractSocket::SendBufferSizeSocketOption,
-			kFilesSendBufferSize);
-		_socket.setSocketOption(
-			QAbstractSocket::ReceiveBufferSizeSocketOption,
-			kFilesReceiveBufferSize);
 	}
 	_state = State::Upgrading;
 	sendUpgradeRequest();

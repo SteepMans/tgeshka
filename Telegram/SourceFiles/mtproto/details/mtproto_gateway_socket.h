@@ -22,8 +22,7 @@ class GatewaySocket final : public AbstractSocket {
 public:
 	GatewaySocket(
 		not_null<QThread*> thread,
-		const ProxyData &gateway,
-		bool protocolForFiles);
+		const ProxyData &gateway);
 	~GatewaySocket();
 
 	void connectToHost(const QString &address, int port) override;
@@ -68,7 +67,6 @@ private:
 	void finishError(int code, const QString &reason);
 
 	const ProxyData _gateway;
-	const bool _protocolForFiles = false;
 	QSslSocket _socket;
 	QString _target;
 	QByteArray _key;

@@ -536,7 +536,7 @@ void TcpConnection::connectToServer(
 		_protocol = Protocol::Create(secret);
 	}
 	_socket = gateway
-		? std::make_unique<GatewaySocket>(thread(), _proxy, protocolForFiles)
+		? std::make_unique<GatewaySocket>(thread(), _proxy)
 		: (_proxy.type == ProxyData::Type::Web)
 		? std::make_unique<WebProxySocket>(thread(), _proxy)
 		: AbstractSocket::Create(
