@@ -60,6 +60,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "mainwidget.h"
 #include "main/main_session.h"
 #include "settings/sections/settings_premium.h"
+#include "tgeshka/tgeshka_members.h"
 #include "ui/text/text_options.h"
 #include "ui/painter.h"
 #include "ui/unread_badge.h"
@@ -1621,6 +1622,9 @@ QSize Message::performCountOptimalSize() {
 					+ (_fromNameStatus
 						? st::dialogsPremiumIcon.icon.width()
 						: 0)
+					+ (Tgeshka::Members::IsMember(from)
+						? st::dialogsPremiumIcon.icon.width()
+						: 0)
 					+ st::msgPadding.right();
 				if (via && !displayForwardedFrom()) {
 					namew += st::msgServiceFont->spacew + via->maxWidth
@@ -2589,16 +2593,29 @@ void Message::paintFromName(
 	const auto statusWidth = _fromNameStatus
 		? st::dialogsPremiumIcon.icon.width()
 		: 0;
+	const auto tgeshkaWidth = Tgeshka::Members::IsMember(from)
+		? st::dialogsPremiumIcon.icon.width()
+		: 0;
+	const auto badgesWidth = statusWidth + tgeshkaWidth;
 	const auto via = item->Get<HistoryMessageVia>();
 	const auto viaShown = via && !displayForwardedFrom() && via->width;
 	const auto viaSkipWidth = viaShown
 		? (via->width + st::msgServiceFont->spacew)
 		: 0;
 	const auto nameAvailableWidth = std::max(
-		((statusWidth && availableWidth > statusWidth)
-			? (availableWidth - statusWidth)
+		((badgesWidth && availableWidth > badgesWidth)
+			? (availableWidth - badgesWidth)
 			: availableWidth) - viaSkipWidth,
 		0);
+	if (tgeshkaWidth && availableWidth > badgesWidth) {
+		Tgeshka::Members::PaintBadge(p, QRect(
+			(availableLeft
+				+ std::min(nameAvailableWidth, nameText->maxWidth())
+				+ statusWidth),
+			trect.top(),
+			tgeshkaWidth,
+			st::dialogsPremiumIcon.icon.height()));
+	}
 	if (statusWidth && availableWidth > statusWidth) {
 		const auto x = availableLeft
 			+ std::min(nameAvailableWidth, nameText->maxWidth());
@@ -2676,6 +2693,7 @@ void Message::paintFromName(
 			? (st::dialogsPremiumIcon.icon.width()
 				+ st::msgServiceFont->spacew)
 			: 0)
+		+ tgeshkaWidth
 		+ st::msgServiceFont->spacew;
 	availableLeft += skipWidth;
 	availableWidth -= skipWidth;
@@ -4328,14 +4346,18 @@ bool Message::getStateFromName(
 		const auto statusWidth = (from && _fromNameStatus)
 			? st::dialogsPremiumIcon.icon.width()
 			: 0;
+		const auto tgeshkaWidth = Tgeshka::Members::IsMember(from)
+			? st::dialogsPremiumIcon.icon.width()
+			: 0;
+		const auto badgesWidth = statusWidth + tgeshkaWidth;
 		const auto via = item->Get<HistoryMessageVia>();
 		const auto viaShown = via && !displayForwardedFrom() && via->width;
 		const auto viaSkipWidth = viaShown
 			? (via->width + st::msgServiceFont->spacew)
 			: 0;
 		const auto nameAvailableWidth = std::max(
-			((statusWidth && availableWidth > statusWidth)
-				? (availableWidth - statusWidth)
+			((badgesWidth && availableWidth > badgesWidth)
+				? (availableWidth - badgesWidth)
 				: availableWidth) - viaSkipWidth,
 			0);
 		const auto nameWidth = std::min(
@@ -4370,6 +4392,7 @@ bool Message::getStateFromName(
 				? (st::dialogsPremiumIcon.icon.width()
 					+ st::msgServiceFont->spacew)
 				: 0)
+			+ tgeshkaWidth
 			+ st::msgServiceFont->spacew;
 		availableLeft += skipWidth;
 		availableWidth -= skipWidth;

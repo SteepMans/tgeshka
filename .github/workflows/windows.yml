@@ -406,7 +406,8 @@ jobs:
             gh release upload "$tag" "$out/deps.sha256" --repo "$repo"
             rm -rf "$out"
           fi
-          gh release list --repo "$repo" --limit 100 --json tagName --jq '.[].tagName' | grep '^deps-' | grep -vx "$tag" | while read -r old; do
+          # grep finds nothing when this is the only deps release: not an error.
+          { gh release list --repo "$repo" --limit 100 --json tagName --jq '.[].tagName' | grep '^deps-' | grep -vx "$tag" || true; } | while read -r old; do
             echo "Removing $old"
             gh release delete "$old" --repo "$repo" --yes --cleanup-tag
           done

@@ -93,4 +93,19 @@ void CheckAccessKey(
 	const QString &token,
 	Fn<void(KeyCheckResult)> done);
 
+// HTTPS request to the gateway of the current settings with the access key
+// (Authorization and X-TGeshka-Client headers), no redirects. Main thread.
+// Does nothing and returns false without a key or a gateway address.
+struct GatewayReply {
+	int code = 0; // HTTP status, 0 when the gateway did not answer.
+	QByteArray body;
+	QByteArray etag;
+};
+bool GatewayApiRequest(
+	const QByteArray &method, // "GET" or "POST"
+	const QString &path, // "/v1/..."
+	const QByteArray &json, // POST body
+	const QByteArray &ifNoneMatch,
+	Fn<void(GatewayReply)> done);
+
 } // namespace Tgeshka
