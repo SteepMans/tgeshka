@@ -10,6 +10,7 @@ based on Telegram Desktop (GPLv3).
 #include "tgeshka/tgeshka_lang.h"
 #include "tgeshka/tgeshka_transport_bridge.h"
 #include "tgeshka/tgeshka_update_ui.h"
+#include "tgeshka/tgeshka_whats_new.h"
 #include "base/platform/base_platform_url_scheme.h"
 #include "core/application.h"
 #include "core/version.h"
@@ -85,6 +86,7 @@ void RegisterUrlScheme(const QString &arguments) {
 }
 
 void OnLocalStorageReady() {
+	WhatsNew::RememberDataFolder();
 	ApplyBuiltInLanguage();
 	ApplyDefaultAccent();
 	MTP::SetGatewayClientId(u"desktop/"_q
@@ -97,6 +99,7 @@ void OnLocalStorageReady() {
 	// After Application::run(): windows exist for the update screens.
 	crl::on_main([] {
 		Update::StartUi();
+		WhatsNew::ShowAfterUpdate();
 	});
 }
 
