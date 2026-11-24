@@ -46,8 +46,8 @@ IDI_ICON1               ICON                    "..\\art\\icon256.ico"
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 7,4,4,0
- PRODUCTVERSION 7,4,4,0
+ FILEVERSION 7,4,6,0
+ PRODUCTVERSION 7,4,6,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -64,10 +64,10 @@ BEGIN
         BEGIN
             VALUE "CompanyName", TGESHKA_COMPANY
             VALUE "FileDescription", TGESHKA_APP_NAME
-            VALUE "FileVersion", "7.4.4.0"
+            VALUE "FileVersion", "7.4.6.0"
             VALUE "LegalCopyright", "Copyright (C) 2014-2026"
             VALUE "ProductName", TGESHKA_APP_NAME
-            VALUE "ProductVersion", "7.4.4.0"
+            VALUE "ProductVersion", "7.4.6.0"
         END
     END
     BLOCK "VarFileInfo"
