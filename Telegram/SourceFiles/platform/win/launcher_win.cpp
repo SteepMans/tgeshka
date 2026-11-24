@@ -267,6 +267,12 @@ bool Launcher::launchUpdater(UpdaterLaunch action) {
 		}
 		pushArgument(u"-exename"_q);
 		pushArgument('"' + cExeName() + '"');
+		if (elevate) {
+			// TGeshka: Updater.exe runs from tupdates/temp, without the
+			// target folder it treats its own folder as the install place.
+			pushArgument(u"-writeprotected"_q);
+			pushArgument('"' + cExeDir() + '"');
+		}
 	}
 	return launch(binaryPath, argumentsList, elevate);
 }
