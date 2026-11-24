@@ -63,6 +63,7 @@ struct Runtime {
 	bool loaded = false;
 	bool started = false;
 	bool prepared = false;
+	bool elevate = false; // Updater.exe could not be copied next to the exe.
 	bool justInstalled = false;
 	rpl::variable<Channel> channel = Channel::Stable;
 	rpl::variable<Status> status;
@@ -655,7 +656,7 @@ void SavePrevious(const QStringList &files) {
 		const auto error = GetLastError();
 		if (error == ERROR_ACCESS_DENIED) {
 			// Program Files: the copy in tupdates/temp runs elevated.
-			cSetWriteProtected(true);
+			Data().elevate = true;
 			return true;
 		}
 		LOG(("TGeshka Update Error: can't copy Updater.exe, %1."
@@ -940,6 +941,10 @@ bool PrepareReadyAtStartup() {
 
 bool InstallPrepared() {
 	return Data().prepared;
+}
+
+bool InstallNeedsElevation() {
+	return Data().prepared && Data().elevate;
 }
 
 } // namespace Tgeshka::Update

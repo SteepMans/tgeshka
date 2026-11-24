@@ -28,7 +28,8 @@ private:
 
 	bool launch(
 		const QString &binaryPath,
-		const QStringList &argumentsList);
+		const QStringList &argumentsList,
+		bool elevate = false);
 	bool installProtectedUpdate();
 	bool relaunchAfterUpdate(bool installed);
 

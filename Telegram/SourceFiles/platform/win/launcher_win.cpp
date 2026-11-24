@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/update_checker.h"
 #include "base/platform/base_platform_file_utilities.h"
 #include "platform/win/update_install_win.h"
+#include "tgeshka/tgeshka_update.h"
 
 #include <QtCore/QDateTime>
 #include <QtCore/QDir>
@@ -191,7 +192,14 @@ bool Launcher::launchUpdater(UpdaterLaunch action) {
 	if (cExeName().isEmpty()) {
 		return false;
 	}
-	if (action == UpdaterLaunch::PerformUpdate) {
+	// TGeshka: tupdates/temp already holds the package verified against
+	// the update manifest (Ed25519), upstream's own package check is skipped.
+	const auto tgeshka = (action == UpdaterLaunch::PerformUpdate)
+		&& Tgeshka::Update::InstallPrepared();
+	const auto elevate = tgeshka && Tgeshka::Update::InstallNeedsElevation();
+	if (tgeshka) {
+		_updating = true;
+	} else if (action == UpdaterLaunch::PerformUpdate) {
 		_updating = true;
 		switch (Core::prepareReadyUpdate()) {
 		case Core::ReadyUpdateInstall::Failed:
@@ -205,6 +213,8 @@ bool Launcher::launchUpdater(UpdaterLaunch action) {
 
 	const auto binaryPath = (action == UpdaterLaunch::JustRelaunch)
 		? (cExeDir() + cExeName())
+		: elevate
+		? (cWorkingDir() + u"tupdates/temp/Updater.exe"_q)
 		: (cExeDir() + u"Updater.exe"_q);
 
 	auto argumentsList = QStringList();
@@ -258,7 +268,7 @@ bool Launcher::launchUpdater(UpdaterLaunch action) {
 		pushArgument(u"-exename"_q);
 		pushArgument('"' + cExeName() + '"');
 	}
-	return launch(binaryPath, argumentsList);
+	return launch(binaryPath, argumentsList, elevate);
 }
 
 bool Launcher::installProtectedUpdate() {
@@ -322,7 +332,8 @@ bool Launcher::relaunchAfterUpdate(bool installed) {
 
 bool Launcher::launch(
 		const QString &binaryPath,
-		const QStringList &argumentsList) {
+		const QStringList &argumentsList,
+		bool elevate) {
 	const auto convertPath = [](const QString &path) {
 		return QDir::toNativeSeparators(path).toStdWString();
 	};
@@ -341,7 +352,7 @@ bool Launcher::launch(
 	const auto hwnd = HWND(0);
 	const auto result = ShellExecute(
 		hwnd,
-		nullptr,
+		elevate ? L"runas" : nullptr,
 		nativeBinaryPath.c_str(),
 		arguments.toStdWString().c_str(),
 		nativeWorkingDir.empty() ? nullptr : nativeWorkingDir.c_str(),

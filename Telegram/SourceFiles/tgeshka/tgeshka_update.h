@@ -67,6 +67,9 @@ void RollbackAndRestart();
 [[nodiscard]] bool PrepareReadyAtStartup();
 // After the main loop: tupdates/temp is prepared by this module.
 [[nodiscard]] bool InstallPrepared();
+// The install folder is write-protected (Program Files): the launcher
+// starts tupdates/temp/Updater.exe elevated.
+[[nodiscard]] bool InstallNeedsElevation();
 
 // Version helpers, exposed for the unit test.
 [[nodiscard]] int CompareVersions(const QString &a, const QString &b);
