@@ -1,5 +1,6 @@
 <RCC>
   <qresource prefix="/tgeshka">
     <file alias="langs/ru.strings">../../langs/tgeshka/ru.strings</file>
+    <file alias="changelog.json">../../../../CHANGELOG-tgeshka.json</file>
   </qresource>
 </RCC>
