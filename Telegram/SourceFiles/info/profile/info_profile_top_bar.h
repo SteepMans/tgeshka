@@ -287,6 +287,7 @@ private:
 	const Fn<bool()> _gifPausedChecker;
 	const std::unique_ptr<Badge> _badge;
 	const std::unique_ptr<Badge> _verified;
+	Ui::RpWidget *_tgeshkaBadge = nullptr;
 
 	const bool _hasActions;
 	const int _minForProgress;

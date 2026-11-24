@@ -8,7 +8,9 @@ based on Telegram Desktop (GPLv3).
 #include "tgeshka/tgeshka_brand.h"
 #include "tgeshka/tgeshka_gateway.h"
 #include "tgeshka/tgeshka_lang.h"
+#include "tgeshka/tgeshka_members.h"
 #include "tgeshka/tgeshka_update_ui.h"
+#include "tgeshka/tgeshka_whats_new.h"
 #include "base/timer.h"
 #include "boxes/about_box.h"
 #include "core/core_gateway.h"
@@ -233,6 +235,17 @@ void BuildAboutSection(SectionBuilder &builder) {
 		.keywords = { u"about"_q, u"о программе"_q },
 	});
 	builder.addButton({
+		.id = u"tgeshka/whats_new"_q,
+		.title = TrValue(u"What's new"_q, u"Что нового"_q),
+		.icon = { &st::menuIconFaq },
+		.onClick = [=] {
+			if (controller) {
+				controller->window().show(Box(WhatsNew::ListBox));
+			}
+		},
+		.keywords = { u"changelog"_q, u"что нового"_q, u"изменения"_q },
+	});
+	builder.addButton({
 		.id = u"tgeshka/sources"_q,
 		.title = TrValue(u"Source code"_q, u"Исходный код"_q),
 		.icon = { &st::menuIconSettings },
@@ -265,6 +278,7 @@ const auto kMeta = BuildHelper({
 	.icon = &st::menuIconTgeshka,
 }, [](SectionBuilder &builder) {
 	BuildGatewaySection(builder);
+	Members::AddSettings(builder);
 	Update::AddSettings(builder);
 	BuildAboutSection(builder);
 });
