@@ -8,6 +8,13 @@ on:
       - 'v*'
   pull_request:
   workflow_dispatch:
+    inputs:
+      compile_path:
+        description: 'Compile path: auto, sccache (seeds the compile cache) or pch'
+        required: false
+        default: auto
+        type: choice
+        options: [auto, sccache, pch]
   # Upstream sync (upstream-sync.yml) builds its merge commit with this.
   workflow_call:
     inputs:
@@ -132,10 +139,17 @@ jobs:
     timeout-minutes: 360
     permissions:
       contents: write
+      # Trims the compile caches and starts the seeding build.
+      actions: write
 
     env:
       # Bump to drop the cached dependencies.
       DEPS_CACHE_VERSION: v1
+      # The compile path (step "Compile path"): Ninja + sccache without precompiled headers
+      # and debug info when a compile cache exists, else Visual Studio/MSBuild with PCH.
+      SCCACHE_VERSION: v0.19.0
+      SCCACHE_DIR: D:\sccache
+      SCCACHE_CACHE_SIZE: 6G
 
     defaults:
       run:
@@ -311,10 +325,111 @@ jobs:
           maximum-size: 32GB
           disk-root: 'D:'
 
+      - name: Compile cache candidate
+        id: candidate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          CALLED: ${{ inputs.ref }}
+          DISPATCH_PATH: ${{ github.event.inputs.compile_path }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # PRs and ordinary pushes to main may use the compile cache; tags, upstream merges
+          # (upstream-sync calls this workflow) and big changes build with MSBuild + PCH.
+          out() { echo "$1" >> "$GITHUB_OUTPUT"; }
+          slug="${GITHUB_REF_NAME//\//-}"
+          [ -n "$PR" ] && slug="pr$PR"
+          out "slug=$slug"
+          echo "COMPILE_CACHE_PREFIX=sccache-$SCCACHE_VERSION-$DEPS_KEY-" >> "$GITHUB_ENV"
+          try=false; reason=''
+          if [ "$DISPATCH_PATH" = pch ]; then
+            reason='forced by the workflow_dispatch input'
+          elif [ -n "$CALLED" ]; then
+            reason='upstream merge build'
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            reason='release tag'
+          elif [ "$EVENT" = push ] && [ "$GITHUB_REF" != refs/heads/main ]; then
+            reason="push to $GITHUB_REF_NAME"
+          else
+            try=true
+            if [ "$DISPATCH_PATH" = sccache ]; then
+              out "force=true"
+            elif [ -n "$BASE" ] && [ "$BASE" != 0000000000000000000000000000000000000000 ]; then
+              # An upstream release moves the submodules and touches hundreds of files:
+              # nearly every object misses, the PCH build is faster.
+              files=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BASE...$GITHUB_SHA" --jq '.files | length' 2> /dev/null || echo 0)
+              moved=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BASE...$GITHUB_SHA" \
+                --jq '[.files[].filename | select(test("^(cmake|Telegram/codegen|Telegram/lib_[^/]+|Telegram/ThirdParty/[^/]+)$"))] | length' 2> /dev/null || echo 0)
+              if [ "$files" -ge 300 ] || [ "$moved" -gt 0 ]; then
+                try=false
+                reason="big change: $files files, $moved submodules moved"
+              fi
+            fi
+          fi
+          out "try=$try"
+          out "reason=$reason"
+          echo "candidate: $try $reason (slug $slug)"
+
+      - name: Install sccache
+        if: steps.candidate.outputs.try == 'true'
+        run: |
+          $name = "sccache-$env:SCCACHE_VERSION-x86_64-pc-windows-msvc"
+          $zip = Join-Path $env:RUNNER_TEMP "$name.zip"
+          Invoke-WebRequest "https://github.com/mozilla/sccache/releases/download/$env:SCCACHE_VERSION/$name.zip" -OutFile $zip
+          Invoke-WebRequest "https://github.com/mozilla/sccache/releases/download/$env:SCCACHE_VERSION/$name.zip.sha256" -OutFile "$zip.sha256"
+          $expected = ((Get-Content "$zip.sha256" -Raw).Trim() -split '\s+')[0]
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne $expected) { throw 'sccache checksum mismatch' }
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          "$env:RUNNER_TEMP\$name" >> $env:GITHUB_PATH
+
+      - name: Restore compile cache
+        id: restore_sccache
+        if: steps.candidate.outputs.try == 'true'
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: ${{ env.COMPILE_CACHE_PREFIX }}${{ steps.candidate.outputs.slug }}-${{ github.run_id }}
+          # The newest entry of this branch, else of main (a PR sees its base branch).
+          restore-keys: |
+            ${{ env.COMPILE_CACHE_PREFIX }}${{ steps.candidate.outputs.slug }}-
+            ${{ env.COMPILE_CACHE_PREFIX }}main-
+
+      - name: Compile path
+        env:
+          TRY: ${{ steps.candidate.outputs.try }}
+          REASON: ${{ steps.candidate.outputs.reason }}
+          FORCE: ${{ steps.candidate.outputs.force }}
+          MATCHED: ${{ steps.restore_sccache.outputs.cache-matched-key }}
+        run: |
+          # sccache (Ninja, no precompiled header) only with a compile cache to start from:
+          # a cold build that way takes ~4.5 h against ~1.7 h with MSBuild + PCH.
+          if ($env:TRY -ne 'true') {
+            $path = 'pch'; $why = $env:REASON
+          } elseif ($env:MATCHED) {
+            $path = 'sccache'; $why = "compile cache $env:MATCHED"
+          } elseif ($env:FORCE -eq 'true') {
+            $path = 'sccache'; $why = 'forced by the workflow_dispatch input (seeds the compile cache)'
+          } else {
+            $path = 'pch'; $why = 'no compile cache for this dependencies key'
+          }
+          "COMPILE_PATH=$path" >> $env:GITHUB_ENV
+          $text = if ($path -eq 'sccache') { "Compile path: sccache + Ninja ($why)" } else { "Compile path: MSBuild + PCH ($why)" }
+          Write-Host $text
+          "### $text" >> $env:GITHUB_STEP_SUMMARY
+
       - name: Build
         run: |
           # 3 jobs: 2 projects x 2 files at a time, four cl.exe fit into memory.
           $options = @{ Jobs = 3; MinFreeGB = 10; GatewayFile = $env:GATEWAY_FILE }
+          if ($env:COMPILE_PATH -eq 'sccache') {
+            # A cached compile cannot use a precompiled header; one Ninja pool of 4 cl.exe.
+            $options += @{ Generator = 'Ninja'; CompilerLauncher = 'sccache'; NoPch = $true; NoDebugInfo = $true }
+            $options.Jobs = 4
+            sccache --start-server
+            sccache --zero-stats | Out-Null
+          }
           if ($env:OFFICIAL -eq '1') { $options.ApiFile = $env:API_FILE } else { $options.TestApi = $true }
           # A release tag v1.2.3 / v1.2.3-beta.1 is the TGeshka version (docs/updates.md).
           if ($env:GITHUB_REF -like 'refs/tags/v*' -and -not '${{ inputs.ref }}') { $options.Version = $env:GITHUB_REF_NAME.Substring(1) }
@@ -323,6 +438,64 @@ jobs:
           $zip = Get-ChildItem "$env:TBUILD\tdesktop\out\*.zip" | Select-Object -First 1
           "ZIP=$($zip.FullName)" >> $env:GITHUB_ENV
           "ZIP_NAME=$($zip.BaseName)" >> $env:GITHUB_ENV
+
+      - name: Compile cache stats
+        if: always() && env.COMPILE_PATH == 'sccache'
+        run: |
+          $stats = sccache --show-stats | Out-String
+          sccache --stop-server | Out-Null
+          Write-Host $stats
+          $executed = if ($stats -match 'Compile requests executed\s+(\d+)') { [int]$Matches[1] } else { 0 }
+          $misses = if ($stats -match '(?m)^Cache misses\s+(\d+)') { [int]$Matches[1] } else { 0 }
+          $rate = if ($executed) { [math]::Round(100.0 * $misses / $executed, 1) } else { 0 }
+          "Compile cache: $misses misses of $executed compiles ($rate %)" >> $env:GITHUB_STEP_SUMMARY
+          # Many misses on this path mean the cache key or the change detection is wrong.
+          if ($rate -gt 30) { Write-Host "::warning::sccache missed $rate % of compiles: check the compile cache key" }
+          exit 0
+
+      - name: Save compile cache
+        if: always() && env.COMPILE_PATH == 'sccache' && steps.restore_sccache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: ${{ env.COMPILE_CACHE_PREFIX }}${{ steps.candidate.outputs.slug }}-${{ github.run_id }}
+
+      - name: Trim compile caches
+        # One entry per branch: main keeps its newest, a PR its newest for 3 days; entries
+        # of an old dependencies key go. The dependencies cache must never be evicted.
+        if: always() && env.COMPILE_PATH == 'sccache'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SLUG: ${{ steps.candidate.outputs.slug }}
+        run: |
+          keep="$COMPILE_CACHE_PREFIX$SLUG-$GITHUB_RUN_ID"
+          cutoff=$(date -u -d '3 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          gh cache list --repo "$GITHUB_REPOSITORY" --key sccache- --limit 100 --json key,lastAccessedAt \
+            --jq '.[] | "\(.key) \(.lastAccessedAt)"' > "$RUNNER_TEMP/sccache-caches.txt" || exit 0
+          while read -r key accessed; do
+            drop=''
+            if [[ "$key" != "$COMPILE_CACHE_PREFIX"* ]]; then
+              drop='old dependencies key or sccache version'
+            elif [[ "$key" == "$COMPILE_CACHE_PREFIX$SLUG-"* && "$key" != "$keep" ]]; then
+              drop='older entry of this branch'
+            elif [[ "$key" == "${COMPILE_CACHE_PREFIX}pr"* && "$accessed" < "$cutoff" ]]; then
+              drop='PR entry unused for 3 days'
+            fi
+            if [ -n "$drop" ]; then
+              echo "Deleting $key: $drop"
+              gh cache delete "$key" --repo "$GITHUB_REPOSITORY" || true
+            fi
+          done < "$RUNNER_TEMP/sccache-caches.txt"
+
+      - name: Seed compile cache
+        # main had to build with PCH (no cache or a big change): one sccache build of the
+        # same commit seeds the cache for the next pushes.
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && env.COMPILE_PATH == 'pch'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run windows.yml --repo "$GITHUB_REPOSITORY" --ref main -f compile_path=sccache
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
