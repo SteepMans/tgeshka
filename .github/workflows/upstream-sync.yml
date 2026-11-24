@@ -109,6 +109,10 @@ jobs:
           done
           # New upstream workflows would run here: only ours are kept.
           git diff --cached --name-only --diff-filter=A origin/main -- .github | xargs -r git rm -q -f --
+          # "What's new" in the app: the next beta tells about the upstream release.
+          next=$(sh tools/tgeshka/next_version.sh beta)
+          python3 tools/tgeshka/changelog_add.py "$next" "Обновлено до Telegram Desktop ${TAG#v}." \
+            && git add CHANGELOG-tgeshka.json
           result=clean
           if [ -n "$(git diff --name-only --diff-filter=U)" ]; then
             result=conflict
