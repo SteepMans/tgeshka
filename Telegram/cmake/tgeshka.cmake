@@ -15,6 +15,8 @@ PRIVATE
     ${src_loc}/tgeshka/tgeshka_integration.h
     ${src_loc}/tgeshka/tgeshka_lang.cpp
     ${src_loc}/tgeshka/tgeshka_lang.h
+    ${src_loc}/tgeshka/tgeshka_members.cpp
+    ${src_loc}/tgeshka/tgeshka_members.h
     ${src_loc}/tgeshka/tgeshka_settings.cpp
     ${src_loc}/tgeshka/tgeshka_settings.h
     ${src_loc}/tgeshka/tgeshka_transport_bridge.cpp

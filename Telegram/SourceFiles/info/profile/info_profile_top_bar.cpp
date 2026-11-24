@@ -67,6 +67,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_credits_graphics.h"
 #include "settings/sections/settings_information.h"
 #include "settings/sections/settings_premium.h"
+#include "tgeshka/tgeshka_members.h"
 #include "ui/boxes/show_or_premium_box.h"
 #include "ui/color_contrast.h"
 #include "ui/controls/stars_rating.h"
@@ -538,6 +539,15 @@ TopBar::TopBar(
 		badgeUpdates = rpl::merge(
 			std::move(badgeUpdates),
 			_botVerify->updated());
+	}
+	if (!_savedMessages) {
+		_tgeshkaBadge = Tgeshka::Members::CreateProfileBadge(
+			this,
+			_peer,
+			st::infoVerifiedStar.size());
+		badgeUpdates = rpl::merge(
+			std::move(badgeUpdates),
+			Tgeshka::Members::Updates());
 	}
 	_title->naturalWidthValue() | rpl::on_next([=](int w) {
 		_title->resizeToWidth(w);
@@ -2009,6 +2019,9 @@ void TopBar::updateTitlePosition(float64 progressCurrent) {
 	const auto verifiedWidget = _verified ? _verified->widget() : nullptr;
 	const auto badgeWidget = _badge ? _badge->widget() : nullptr;
 	const auto botVerifyWidget = _botVerify ? _botVerify->widget() : nullptr;
+	const auto tgeshkaWidget = (_tgeshkaBadge && !_tgeshkaBadge->isHidden())
+		? _tgeshkaBadge
+		: nullptr;
 	auto badgesWidth = 0;
 	if (verifiedWidget) {
 		badgesWidth += verifiedWidget->width();
@@ -2019,7 +2032,10 @@ void TopBar::updateTitlePosition(float64 progressCurrent) {
 	if (botVerifyWidget) {
 		badgesWidth += botVerifyWidget->width();
 	}
-	if (verifiedWidget || badgeWidget) {
+	if (tgeshkaWidget) {
+		badgesWidth += tgeshkaWidget->width();
+	}
+	if (verifiedWidget || badgeWidget || tgeshkaWidget) {
 		badgesWidth += st::infoVerifiedCheckPosition.x();
 	}
 	const auto titleWidth = width()
@@ -2050,7 +2066,10 @@ void TopBar::updateTitlePosition(float64 progressCurrent) {
 	if (badgeWidget) {
 		totalElementsWidth += badgeWidget->width();
 	}
-	if (verifiedWidget || badgeWidget) {
+	if (tgeshkaWidget) {
+		totalElementsWidth += tgeshkaWidget->width();
+	}
+	if (verifiedWidget || badgeWidget || tgeshkaWidget) {
 		totalElementsWidth += st::infoVerifiedCheckPosition.x();
 	}
 	totalElementsWidth += botVerifySkip;
@@ -2078,6 +2097,14 @@ void TopBar::updateTitlePosition(float64 progressCurrent) {
 			badgeLeft + (badgeWidget ? badgeWidget->width() : 0),
 			badgeTop,
 			badgeBottom);
+	}
+	if (tgeshkaWidget) {
+		tgeshkaWidget->moveToLeft(
+			(badgeLeft
+				+ st::infoVerifiedCheckPosition.x()
+				+ (badgeWidget ? badgeWidget->width() : 0)
+				+ (verifiedWidget ? verifiedWidget->width() : 0)),
+			badgeTop + st::infoVerifiedCheckPosition.y());
 	}
 }
 
