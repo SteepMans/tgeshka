@@ -39,7 +39,7 @@
 
   -Generator Ninja builds with Ninja Multi-Config instead of Visual Studio/MSBuild (one -Jobs
   pool for all targets). -CompilerLauncher (sccache/ccache) needs Ninja; a cached compile cannot
-  use a precompiled header (/Yu), hence -NoPch, and -NoDebugInfo keeps the cached objects small.
+  use a precompiled header (/Yu), hence -NoPch (force-included instead), and -NoDebugInfo keeps the cached objects small.
 #>
 [CmdletBinding()]
 param(
@@ -237,7 +237,11 @@ try {
         $apiContent += "set(CMAKE_C_COMPILER_LAUNCHER `"$launcher`" CACHE STRING `"`" FORCE)`n" +
             "set(CMAKE_CXX_COMPILER_LAUNCHER `"$launcher`" CACHE STRING `"`" FORCE)`n"
     }
-    if ($NoPch) { $apiContent += "set(CMAKE_DISABLE_PRECOMPILE_HEADERS ON CACHE BOOL `"`" FORCE)`n" }
+    if ($NoPch) {
+        # The precompiled headers are force-included instead, the sources rely on their includes.
+        $forceInclude = (Join-Path $Repo 'Telegram\build\tgeshka\force_include_pch.cmake') -replace '\\', '/'
+        $apiContent += "set(CMAKE_PROJECT_INCLUDE `"$forceInclude`" CACHE FILEPATH `"`" FORCE)`n"
+    }
     if ($NoDebugInfo) { $apiContent += "set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT `"`" CACHE STRING `"`" FORCE)`n" }
     $previous = if (Test-Path $apiCache) { [IO.File]::ReadAllText($apiCache) } else { '' }
     $apiChanged = $previous -ne $apiContent
