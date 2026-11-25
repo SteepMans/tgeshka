@@ -7,6 +7,7 @@ based on Telegram Desktop (GPLv3).
 #include "tgeshka/tgeshka_boxes.h"
 #include "tgeshka/tgeshka_brand.h"
 #include "tgeshka/tgeshka_gateway.h"
+#include "tgeshka/tgeshka_integration.h"
 #include "tgeshka/tgeshka_lang.h"
 #include "tgeshka/tgeshka_members.h"
 #include "tgeshka/tgeshka_update_ui.h"
@@ -208,6 +209,33 @@ void BuildGatewaySection(SectionBuilder &builder) {
 	builder.addSkip();
 }
 
+void BuildLinksSection(SectionBuilder &builder) {
+	if (!TgLinksSupported()) {
+		return;
+	}
+	builder.addDivider();
+	builder.addSkip();
+	builder.addSubsectionTitle(TrValue(u"Links"_q, u"Ссылки"_q));
+	const auto toggle = builder.addButton({
+		.id = u"tgeshka/tg_links"_q,
+		.title = TrValue(
+			u"Open tg:// links in TGeshka"_q,
+			u"Открывать ссылки tg:// в TGeshka"_q),
+		.st = &st::settingsButtonNoIcon,
+		.toggled = rpl::single(OpensTgLinks()),
+		.keywords = { u"tg://"_q, u"links"_q, u"ссылки"_q, u"t.me"_q },
+	});
+	if (toggle) {
+		toggle->toggledValue(
+		) | rpl::filter([](bool checked) {
+			return checked != OpensTgLinks();
+		}) | rpl::on_next([](bool checked) {
+			SetOpensTgLinks(checked);
+		}, toggle->lifetime());
+	}
+	builder.addSkip();
+}
+
 void BuildAboutSection(SectionBuilder &builder) {
 	const auto controller = builder.controller();
 
@@ -278,6 +306,7 @@ const auto kMeta = BuildHelper({
 	.icon = &st::menuIconTgeshka,
 }, [](SectionBuilder &builder) {
 	BuildGatewaySection(builder);
+	BuildLinksSection(builder);
 	Members::AddSettings(builder);
 	Update::AddSettings(builder);
 	BuildAboutSection(builder);

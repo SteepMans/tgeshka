@@ -17,8 +17,16 @@ class Controller;
 
 namespace Tgeshka {
 
-// Registers only tgeshka:// (tg:// stays with the official client).
+// Registers tgeshka:// and, while the switch is on, tg:// as well.
 void RegisterUrlScheme(const QString &arguments);
+
+// "Open tg:// links in TGeshka", on by default (Windows only).
+// The official client takes tg:// back when it updates, so the scheme
+// is checked on every launch and then every few minutes. Turning the
+// switch off hands tg:// back to the official client if it is installed.
+[[nodiscard]] bool TgLinksSupported();
+[[nodiscard]] bool OpensTgLinks();
+void SetOpensTgLinks(bool enabled);
 
 // After the local settings are read, before the first connection.
 void OnLocalStorageReady();
