@@ -9,6 +9,8 @@ PRIVATE
     ${src_loc}/tgeshka/tgeshka_boxes.cpp
     ${src_loc}/tgeshka/tgeshka_boxes.h
     ${src_loc}/tgeshka/tgeshka_brand.h
+    ${src_loc}/tgeshka/tgeshka_easter_egg.cpp
+    ${src_loc}/tgeshka/tgeshka_easter_egg.h
     ${src_loc}/tgeshka/tgeshka_gateway.cpp
     ${src_loc}/tgeshka/tgeshka_gateway.h
     ${src_loc}/tgeshka/tgeshka_integration.cpp

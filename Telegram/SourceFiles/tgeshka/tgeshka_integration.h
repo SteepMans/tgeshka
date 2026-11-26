@@ -28,6 +28,10 @@ void RegisterUrlScheme(const QString &arguments);
 [[nodiscard]] bool OpensTgLinks();
 void SetOpensTgLinks(bool enabled);
 
+// Easter egg (пасхалка) for an outgoing text message, see
+// tgeshka-easter-egg.txt. Text with formatting stays as it is.
+[[nodiscard]] TextWithEntities ApplyEasterEgg(TextWithEntities text);
+
 // After the local settings are read, before the first connection.
 void OnLocalStorageReady();
 
