@@ -13,6 +13,7 @@ based on Telegram Desktop (GPLv3).
 #include "tgeshka/tgeshka_update_ui.h"
 #include "tgeshka/tgeshka_whats_new.h"
 #include "base/platform/base_platform_url_scheme.h"
+#include "base/timer.h"
 #include "core/application.h"
 #include "core/version.h"
 #include "lang/lang_text_entity.h"
@@ -32,9 +33,89 @@ based on Telegram Desktop (GPLv3).
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDir>
 #include <QtCore/QFile>
+#include <QtCore/QSettings>
 
 namespace Tgeshka {
 namespace {
+
+constexpr auto kTgLinksOffFile = "tgeshka_tg_links_off";
+constexpr auto kTgLinksCheckInterval = 10 * 60 * crl::time(1000);
+
+[[nodiscard]] QString TgLinksOffPath() {
+	return cWorkingDir() + u"tdata/"_q + QString::fromLatin1(kTgLinksOffFile);
+}
+
+[[nodiscard]] base::Platform::UrlSchemeDescriptor SchemeDescriptor(
+		const QString &protocol,
+		const QString &protocolName,
+		const QString &arguments) {
+	return {
+		.executable = Platform::ExecutablePathForShortcuts(),
+		.arguments = arguments,
+		.protocol = protocol,
+		.protocolName = protocolName,
+		// Software\Classes\tgeshka.<protocol>, next to tdesktop.tg
+		// of the official client, and our own Capabilities key.
+		.shortAppName = QString::fromLatin1(TGESHKA_URL_SCHEME),
+		.longAppName = QCoreApplication::applicationName(),
+		.displayAppName = AppName.utf16(),
+		.displayAppDescription = AppName.utf16(),
+	};
+}
+
+#ifdef Q_OS_WIN
+// Hands tg:// back to the official client: its tdesktop.tg command if it
+// was ever registered, otherwise our tg:// key is removed. Only when tg://
+// still points to this executable, someone else's choice stays.
+void ReleaseTgScheme() {
+	auto classes = QSettings(
+		u"HKEY_CURRENT_USER\\Software\\Classes"_q,
+		QSettings::NativeFormat);
+	const auto exe = QDir::toNativeSeparators(
+		Platform::ExecutablePathForShortcuts());
+	const auto current = classes.value(
+		u"tg/shell/open/command/Default"_q).toString();
+	if (current.contains(exe, Qt::CaseInsensitive)) {
+		const auto official = classes.value(
+			u"tdesktop.tg/shell/open/command/Default"_q).toString();
+		if (!official.isEmpty()) {
+			classes.setValue(u"tg/shell/open/command/Default"_q, official);
+			const auto icon = classes.value(
+				u"tdesktop.tg/DefaultIcon/Default"_q).toString();
+			if (!icon.isEmpty()) {
+				classes.setValue(u"tg/DefaultIcon/Default"_q, icon);
+			}
+			classes.setValue(u"tg/Default"_q, u"URL:Telegram Link"_q);
+		} else {
+			classes.remove(u"tg"_q);
+		}
+	}
+	classes.remove(QString::fromLatin1(TGESHKA_URL_SCHEME) + u".tg"_q);
+	auto associations = QSettings(
+		u"HKEY_CURRENT_USER\\Software\\"_q
+			+ QCoreApplication::applicationName()
+			+ u"\\Capabilities\\UrlAssociations"_q,
+		QSettings::NativeFormat);
+	associations.remove(u"tg"_q);
+	LOG(("TGeshka: tg:// links handed back."));
+}
+#endif // Q_OS_WIN
+
+// The official client registers tg:// again after each of its updates.
+void StartTgLinksCheck() {
+	if (!TgLinksSupported()) {
+		return;
+	}
+	// Lives until the process exits, never destroyed after the app.
+	static const auto timer = new base::Timer([] {
+		if (OpensTgLinks()) {
+			Core::Application::RegisterUrlScheme();
+		}
+	});
+	if (!timer->isActive()) {
+		timer->callEach(kTgLinksCheckInterval);
+	}
+}
 
 void ShowToast(const QString &text) {
 	if (const auto window = Core::App().activeWindow()) {
@@ -73,17 +154,48 @@ void ApplyDefaultAccent() {
 } // namespace
 
 void RegisterUrlScheme(const QString &arguments) {
-	const auto scheme = QString::fromLatin1(TGESHKA_URL_SCHEME);
-	base::Platform::RegisterUrlScheme(base::Platform::UrlSchemeDescriptor{
-		.executable = Platform::ExecutablePathForShortcuts(),
-		.arguments = arguments,
-		.protocol = scheme,
-		.protocolName = AppName.utf16() + u" Link"_q,
-		.shortAppName = scheme,
-		.longAppName = QCoreApplication::applicationName(),
-		.displayAppName = AppName.utf16(),
-		.displayAppDescription = AppName.utf16(),
-	});
+	base::Platform::RegisterUrlScheme(SchemeDescriptor(
+		QString::fromLatin1(TGESHKA_URL_SCHEME),
+		AppName.utf16() + u" Link"_q,
+		arguments));
+	if (OpensTgLinks()) {
+		base::Platform::RegisterUrlScheme(SchemeDescriptor(
+			u"tg"_q,
+			u"Telegram Link"_q,
+			arguments));
+	}
+}
+
+bool TgLinksSupported() {
+#ifdef Q_OS_WIN
+	return true;
+#else // Q_OS_WIN
+	return false;
+#endif // Q_OS_WIN
+}
+
+bool OpensTgLinks() {
+	return TgLinksSupported() && !QFile::exists(TgLinksOffPath());
+}
+
+void SetOpensTgLinks(bool enabled) {
+	if (!TgLinksSupported() || OpensTgLinks() == enabled) {
+		return;
+	}
+	const auto path = TgLinksOffPath();
+	if (enabled) {
+		QFile::remove(path);
+		Core::Application::RegisterUrlScheme();
+		LOG(("TGeshka: tg:// links taken."));
+	} else {
+		QDir().mkpath(QFileInfo(path).absolutePath());
+		if (auto file = QFile(path); file.open(QIODevice::WriteOnly)) {
+			file.write("1");
+		}
+#ifdef Q_OS_WIN
+		ReleaseTgScheme();
+#endif // Q_OS_WIN
+	}
 }
 
 void OnLocalStorageReady() {
@@ -99,6 +211,10 @@ void OnLocalStorageReady() {
 
 	// After Application::run(): windows exist for the update screens.
 	crl::on_main([] {
+		if (OpensTgLinks()) {
+			Core::Application::RegisterUrlScheme();
+		}
+		StartTgLinksCheck();
 		Members::Start();
 		Update::StartUi();
 		WhatsNew::ShowAfterUpdate();

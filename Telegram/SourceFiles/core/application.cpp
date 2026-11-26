@@ -2211,8 +2211,8 @@ void Application::startShortcuts() {
 }
 
 void Application::RegisterUrlScheme() {
-	// TGeshka: tg://, ton:// and tonsite:// stay with the official client,
-	// only our own scheme for gateway key links is registered.
+	// TGeshka: ton:// and tonsite:// stay with the official client, tg://
+	// only while "Open tg:// links in TGeshka" is on (tgeshka_integration).
 	Tgeshka::RegisterUrlScheme(Launcher::Instance().customWorkingDir()
 		? u"-workdir \"%1\""_q.arg(cWorkingDir())
 		: QString());
