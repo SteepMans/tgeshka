@@ -1,0 +1,39 @@
+name: Easter egg tests
+
+# Unit test of the easter egg (пасхалка): plain C++ without Qt, seconds on Linux.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - tgeshka-easter-egg.txt
+      - Telegram/SourceFiles/tgeshka/tgeshka_easter_egg.*
+      - Telegram/SourceFiles/tgeshka/tests/**
+      - .github/workflows/easter-egg.yml
+  pull_request:
+    paths:
+      - tgeshka-easter-egg.txt
+      - Telegram/SourceFiles/tgeshka/tgeshka_easter_egg.*
+      - Telegram/SourceFiles/tgeshka/tests/**
+      - .github/workflows/easter-egg.yml
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            tgeshka-easter-egg.txt
+            Telegram/SourceFiles/tgeshka
+      - name: Build and run
+        run: |
+          g++ -std=c++20 -Wall -Wextra -Werror -I Telegram/SourceFiles \
+            Telegram/SourceFiles/tgeshka/tgeshka_easter_egg.cpp \
+            Telegram/SourceFiles/tgeshka/tests/tgeshka_easter_egg_tests.cpp \
+            -o easter_egg_tests
+          ./easter_egg_tests tgeshka-easter-egg.txt

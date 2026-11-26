@@ -25,6 +25,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_polls.h"
 #include "api/api_sending.h"
 #include "api/api_text_entities.h"
+#include "tgeshka/tgeshka_integration.h"
 #include "api/api_rich_tasks.h"
 #include "api/api_todo_lists.h"
 #include "api/api_self_destruct.h"
@@ -4839,10 +4840,10 @@ void ApiWrap::sendMessage(
 	local().saveRecentSentHashtags(textWithTags.text);
 
 	auto sending = TextWithEntities();
-	auto left = TextWithEntities {
+	auto left = Tgeshka::ApplyEasterEgg(TextWithEntities {
 		textWithTags.text,
 		TextUtilities::ConvertTextTagsToEntities(textWithTags.tags)
-	};
+	});
 	auto prepareFlags = Ui::ItemTextOptions(
 		history,
 		_session->user()).flags;

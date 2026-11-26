@@ -6,6 +6,7 @@ based on Telegram Desktop (GPLv3).
 
 #include "tgeshka/tgeshka_boxes.h"
 #include "tgeshka/tgeshka_brand.h"
+#include "tgeshka/tgeshka_easter_egg.h"
 #include "tgeshka/tgeshka_gateway.h"
 #include "tgeshka/tgeshka_lang.h"
 #include "tgeshka/tgeshka_members.h"
@@ -164,6 +165,24 @@ void RegisterUrlScheme(const QString &arguments) {
 			u"Telegram Link"_q,
 			arguments));
 	}
+}
+
+TextWithEntities ApplyEasterEgg(TextWithEntities text) {
+	if (!text.entities.isEmpty() || text.text.isEmpty()) {
+		return text;
+	}
+	static const auto rules = [] {
+		auto file = QFile(u":/tgeshka/easter-egg.txt"_q);
+		return file.open(QIODevice::ReadOnly)
+			? EasterEgg::Parse(file.readAll().toStdString())
+			: EasterEgg::Rules();
+	}();
+	const auto original = text.text.toStdU16String();
+	const auto result = EasterEgg::Apply(rules, original);
+	if (result != original) {
+		text.text = QString::fromStdU16String(result);
+	}
+	return text;
 }
 
 bool TgLinksSupported() {
