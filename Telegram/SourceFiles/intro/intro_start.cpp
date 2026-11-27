@@ -7,15 +7,18 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "intro/intro_start.h"
 
-#include "lang/lang_keys.h"
-#include "intro/intro_qr.h"
 #include "intro/intro_phone.h"
-#include "ui/widgets/buttons.h"
-#include "ui/widgets/labels.h"
+#include "intro/intro_qr.h"
+#include "lang/lang_keys.h"
 #include "main/main_account.h"
 #include "main/main_app_config.h"
+<<<<<<< HEAD
 #include "tgeshka/tgeshka_brand.h"
 #include "tgeshka/tgeshka_lang.h"
+=======
+#include "ui/widgets/buttons.h"
+#include "ui/widgets/labels.h"
+>>>>>>> refs/upstream/v7.4.7
 
 namespace Intro {
 namespace details {

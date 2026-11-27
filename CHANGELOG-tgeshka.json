@@ -1,5 +1,12 @@
 [
   {
+    "version": "0.1.5",
+    "date": "2026-11-27",
+    "items": [
+      "Обновлено до Telegram Desktop 7.4.7."
+    ]
+  },
+  {
     "version": "0.1.4",
     "date": "2026-11-26",
     "items": [
