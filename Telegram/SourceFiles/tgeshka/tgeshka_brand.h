@@ -17,7 +17,7 @@ to plain #define lines with string literals.
 // Telegram Desktop version in core/version.h. A release build gets the
 // version of its tag from CMake (build.ps1 -Version, docs/updates.md).
 #ifndef TGESHKA_VERSION
-#define TGESHKA_VERSION "0.1.4"
+#define TGESHKA_VERSION "0.1.5"
 #endif // TGESHKA_VERSION
 
 // Executable name without extension and data folder in %APPDATA%.

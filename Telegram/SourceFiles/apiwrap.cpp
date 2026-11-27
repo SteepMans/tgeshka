@@ -25,15 +25,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_peer_colors.h"
 #include "api/api_peer_photo.h"
 #include "api/api_polls.h"
-<<<<<<< HEAD
-#include "api/api_sending.h"
-#include "api/api_text_entities.h"
-#include "tgeshka/tgeshka_integration.h"
-=======
 #include "api/api_premium.h"
 #include "api/api_reactions_notify_settings.h"
 #include "api/api_read_metrics.h"
->>>>>>> refs/upstream/v7.4.7
+#include "tgeshka/tgeshka_integration.h"
 #include "api/api_rich_tasks.h"
 #include "api/api_ringtones.h"
 #include "api/api_self_destruct.h"

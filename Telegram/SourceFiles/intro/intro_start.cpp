@@ -12,13 +12,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "main/main_account.h"
 #include "main/main_app_config.h"
-<<<<<<< HEAD
-#include "tgeshka/tgeshka_brand.h"
-#include "tgeshka/tgeshka_lang.h"
-=======
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/labels.h"
->>>>>>> refs/upstream/v7.4.7
+#include "tgeshka/tgeshka_brand.h"
+#include "tgeshka/tgeshka_lang.h"
 
 namespace Intro {
 namespace details {

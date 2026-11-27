@@ -13,14 +13,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_session.h"
 #include "data/data_user.h"
 #include "lang/lang_keys.h"
-<<<<<<< HEAD
-#include "tgeshka/tgeshka_members.h"
-#include "ui/painter.h"
-#include "ui/rect.h"
-#include "ui/power_saving.h"
-=======
 #include "main/main_session.h"
->>>>>>> refs/upstream/v7.4.7
+#include "tgeshka/tgeshka_members.h"
 #include "ui/text/text_custom_emoji.h"
 #include "ui/painter.h"
 #include "ui/power_saving.h"
